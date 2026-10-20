@@ -1,0 +1,22 @@
+{
+  "name": "bb-mask",
+  "version": "0.2.0",
+  "description": "bb-mask istemcisi. anonymize ve restore; model çağrısı yok.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  }
+}
