@@ -16,7 +16,8 @@ from urllib.parse import quote
 
 import httpx
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8081"
+# Müşteri kodu sunucudaki Data Mask konteynerine gider (8081).
+DEFAULT_BASE_URL = "http://43.229.92.93:8081"
 _KURGU0 = "Bu uç henüz açık değil."
 
 PlaceholderStyle = Literal["angle", "bracket_tr"]

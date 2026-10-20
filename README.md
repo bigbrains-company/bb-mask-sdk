@@ -44,7 +44,7 @@ export BB_ANONYM_TOKEN="dm_test_..."
 ```python
 istemci = bb_mask.init(
     api_key=os.environ["BB_ANONYM_TOKEN"],
-    base_url="http://127.0.0.1:8081",  # varsayılan budur
+    base_url="http://43.229.92.93:8081",  # varsayılan budur
     timeout=120,                       # saniye
 )
 ```
@@ -52,7 +52,7 @@ istemci = bb_mask.init(
 | Argüman | Tip | Anlam |
 |---|---|---|
 | `api_key` | `str` | Konsoldaki `dm_test_` anahtarı. Boşsa `BBError(401)`. |
-| `base_url` | `str` | Servis adresi. Varsayılan `http://127.0.0.1:8081`. |
+| `base_url` | `str` | Servis adresi. Varsayılan `http://43.229.92.93:8081`. |
 | `timeout` | `float` | HTTP zaman aşımı, saniye. Varsayılan `120`. |
 
 Dönüş `BBAnonym`'dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `init` öncekinin yerine geçer.
@@ -60,7 +60,7 @@ Dönüş `BBAnonym`'dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `
 İkinci bir anahtar gerekiyorsa süreç globaline dokunmadan `BBAnonym` kurun. Kurucu `init` istemez.
 
 ```python
-diger = bb_mask.BBAnonym("http://127.0.0.1:8081", token, timeout=120)
+diger = bb_mask.BBAnonym("http://43.229.92.93:8081", token, timeout=120)
 ```
 
 ## Nesneler
@@ -280,7 +280,7 @@ Modül fonksiyonları `init` ister. `BBAnonym` metotları kurucudaki anahtarı k
 ### Modül
 
 ```python
-init(api_key: str, base_url: str = "http://127.0.0.1:8081", timeout: float = 120) -> BBAnonym
+init(api_key: str, base_url: str = "http://43.229.92.93:8081", timeout: float = 120) -> BBAnonym
 anonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
 anonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
 anonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
