@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <DefaultItemExcludes>$(DefaultItemExcludes);BbMask.Tests/**</DefaultItemExcludes>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>BigBrains</RootNamespace>
+    <AssemblyName>bb-mask</AssemblyName>
+    <Version>0.2.0</Version>
+    <Description>bb-mask istemcisi. anonymize ve restore; model çağrısı yok.</Description>
+    <PackageId>bb-mask</PackageId>
+    <Authors>BigBrains</Authors>
+    <Company>BigBrains</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BbMask.Tests" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
