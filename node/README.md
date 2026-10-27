@@ -4,7 +4,7 @@ Türkçe hukuki metindeki kişisel veriyi etiketler, model cevabındaki etiketle
 
 Müşteri Data Mask konsolundan `dm_test_` anahtarı alır. Kendi backend’i bu paketi kurar ve anahtarı `init`’e verir. LLM satırı müşterinindir; SDK’nın öncesine `anonymize`, sonrasına `restore` konur.
 
-Node 18+. Bağımlılık yok; `fetch` yeter. Python paketi `python/` klasöründedir. Go, C# ve Java aynı deponun diğer klasörlerindedir.
+Node 18+. Bağımlılık yok; `fetch` yeter. Paket ESM’dir; `import` kullanılır.
 
 ```js
 import { init, anonymize, restore, deleteMapping } from "bb-mask";
@@ -19,19 +19,11 @@ await deleteMapping(tagged.docId);
 
 ## Kurulum
 
-Paket yayınlanınca:
-
 ```bash
 npm install bb-mask
 ```
 
-Bu depoyu çektikten sonra, depo kökünden:
-
-```bash
-npm install ./node
-```
-
-Anahtarı koda veya repoya yazmayın.
+Anahtarı koda veya depoya yazmayın.
 
 ```bash
 export BB_ANONYM_TOKEN="dm_test_..."
@@ -41,7 +33,7 @@ export BB_ANONYM_TOKEN="dm_test_..."
 
 ```js
 const istemci = init(process.env.BB_ANONYM_TOKEN, {
-  baseUrl: "http://43.229.92.93:8081",
+  baseUrl: "https://app.bbmask.co",
   timeout: 120,
 });
 ```
@@ -49,7 +41,7 @@ const istemci = init(process.env.BB_ANONYM_TOKEN, {
 | Argüman | Anlam |
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa `BBError(401)`. |
-| `baseUrl` | Servis adresi. Varsayılan `http://43.229.92.93:8081`. |
+| `baseUrl` | Servis adresi. Varsayılan `https://app.bbmask.co`. |
 | `timeout` | HTTP zaman aşımı, saniye. Varsayılan `120`. |
 
 İkinci bir anahtar gerekiyorsa `init` kullanmadan `BBAnonym` kurun.
@@ -57,7 +49,7 @@ const istemci = init(process.env.BB_ANONYM_TOKEN, {
 ```js
 import { BBAnonym } from "bb-mask";
 
-const diger = new BBAnonym("http://43.229.92.93:8081", token, 120);
+const diger = new BBAnonym("https://app.bbmask.co", token, 120);
 ```
 
 ## Nesneler

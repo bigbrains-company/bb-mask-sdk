@@ -63,14 +63,14 @@ export BB_ANONYM_TOKEN="dm_test_..."
 ```java
 BBAnonym istemci = BbMask.init(
     System.getenv("BB_ANONYM_TOKEN"),
-    "http://43.229.92.93:8081",
+    "https://app.bbmask.co",
     Duration.ofSeconds(120));
 ```
 
 | Argüman | Anlam |
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
-| `baseUrl` | Servis adresi. Boşsa `http://43.229.92.93:8081`. |
+| `baseUrl` | Servis adresi. Boşsa `https://app.bbmask.co`. |
 | `timeout` | HTTP zaman aşımı. Boşsa 120 saniye. |
 
 Dönüş `BBAnonym`'dur. İkinci `init` öncekinin yerine geçer.
@@ -80,7 +80,7 @@ Dönüş `BBAnonym`'dur. İkinci `init` öncekinin yerine geçer.
 ```java
 @Bean
 BBAnonym bbAnonym(@Value("${bb.anonym.token}") String token) {
-    return new BBAnonym("http://43.229.92.93:8081", token, Duration.ofSeconds(120));
+    return new BBAnonym("https://app.bbmask.co", token, Duration.ofSeconds(120));
 }
 ```
 

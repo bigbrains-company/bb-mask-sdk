@@ -11,7 +11,7 @@ namespace BigBrains;
 public static class BbMask
 {
     public const string Version = "0.2.0";
-    public const string DefaultBaseUrl = "http://43.229.92.93:8081";
+    public const string DefaultBaseUrl = "https://app.bbmask.co";
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
     public const string StyleAngle = "angle";
     public const string StyleBracketTr = "bracket_tr";

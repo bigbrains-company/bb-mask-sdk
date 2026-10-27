@@ -68,7 +68,7 @@ import "github.com/bigbrains/bb-mask-sdk/go"
 
 ```go
 istemci, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"), bbmask.Config{
-    BaseURL: "http://43.229.92.93:8081", // varsayılan budur
+    BaseURL: "https://app.bbmask.co", // varsayılan budur
     Timeout: 120 * time.Second,         // varsayılan budur
 })
 ```
@@ -76,7 +76,7 @@ istemci, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"), bbmask.Config{
 | Alan | Anlam |
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
-| `BaseURL` | Servis adresi. Boşsa `http://43.229.92.93:8081`. |
+| `BaseURL` | Servis adresi. Boşsa `https://app.bbmask.co`. |
 | `Timeout` | HTTP zaman aşımı. Sıfırsa 120 saniye. |
 
 Dönüş `*BBAnonym`’dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `Init` öncekinin yerine geçer.
@@ -84,7 +84,7 @@ Dönüş `*BBAnonym`’dur. Modül fonksiyonları bu istemciyi kullanır. İkinc
 İkinci bir anahtar gerekiyorsa `Init` kullanmadan `New` kurun.
 
 ```go
-diger := bbmask.New("http://43.229.92.93:8081", token, 120*time.Second)
+diger := bbmask.New("https://app.bbmask.co", token, 120*time.Second)
 ```
 
 ## Nesneler

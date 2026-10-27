@@ -10,7 +10,7 @@ import java.util.Map;
  */
 public final class BbMask {
     public static final String VERSION = "0.2.0";
-    public static final String DEFAULT_BASE_URL = "http://43.229.92.93:8081";
+    public static final String DEFAULT_BASE_URL = "https://app.bbmask.co";
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(120);
     public static final String STYLE_ANGLE = "angle";
     public static final String STYLE_BRACKET_TR = "bracket_tr";

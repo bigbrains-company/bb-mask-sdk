@@ -17,7 +17,7 @@ from urllib.parse import quote
 import httpx
 
 # Müşteri kodu sunucudaki Data Mask konteynerine gider (8081).
-DEFAULT_BASE_URL = "http://43.229.92.93:8081"
+DEFAULT_BASE_URL = "https://app.bbmask.co"
 _KURGU0 = "Bu uç henüz açık değil."
 
 PlaceholderStyle = Literal["angle", "bracket_tr"]

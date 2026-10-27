@@ -27,7 +27,7 @@ import (
 
 const (
 	Version        = "0.2.0"
-	DefaultBaseURL = "http://43.229.92.93:8081"
+	DefaultBaseURL = "https://app.bbmask.co"
 	DefaultTimeout = 120 * time.Second
 	StyleAngle     = "angle"
 	StyleBracketTR = "bracket_tr"

@@ -28,7 +28,11 @@ Kullanım `python/README.md` içindedir.
 
 ## Node
 
-Paket yayınlanınca `npm install bb-mask`. Bu depoyu çektikten sonra:
+```bash
+npm install bb-mask
+```
+
+Bu depoyu çektikten sonra:
 
 ```bash
 npm install ./node

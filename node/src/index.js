@@ -9,7 +9,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-export const DEFAULT_BASE_URL = "http://43.229.92.93:8081";
+export const DEFAULT_BASE_URL = "https://app.bbmask.co";
 const NOT_OPEN = "Bu uç henüz açık değil.";
 const STYLES = new Set(["angle", "bracket_tr"]);
 

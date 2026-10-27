@@ -62,14 +62,14 @@ export BB_ANONYM_TOKEN="dm_test_..."
 ```csharp
 var istemci = BbMask.Init(
     Environment.GetEnvironmentVariable("BB_ANONYM_TOKEN"),
-    "http://43.229.92.93:8081",
+    "https://app.bbmask.co",
     TimeSpan.FromSeconds(120));
 ```
 
 | Argüman | Anlam |
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
-| `baseUrl` | Servis adresi. Boşsa `http://43.229.92.93:8081`. |
+| `baseUrl` | Servis adresi. Boşsa `https://app.bbmask.co`. |
 | `timeout` | HTTP zaman aşımı. Boşsa 120 saniye. |
 
 Dönüş `BBAnonym`'dur. İkinci `Init` öncekinin yerine geçer.
@@ -77,7 +77,7 @@ Dönüş `BBAnonym`'dur. İkinci `Init` öncekinin yerine geçer.
 İkinci bir anahtar gerekiyorsa `Init` kullanmadan kurun. ASP.NET Core'da bu nesne singleton olabilir.
 
 ```csharp
-var diger = new BBAnonym("http://43.229.92.93:8081", token, TimeSpan.FromSeconds(120));
+var diger = new BBAnonym("https://app.bbmask.co", token, TimeSpan.FromSeconds(120));
 builder.Services.AddSingleton(diger);
 ```
 
