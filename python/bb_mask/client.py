@@ -1,13 +1,16 @@
 """bb_mask HTTP istemcisi. Model çağrısı bu modülde yoktur.
 
-complete ailesi henüz açık değil; 501 döner.
 doc_id serviste kalır. get_map sözlüğü verir. persist=False state döner.
 session() doc_id veya state'i gizler.
+
+anonymize_file(path) yolu okur; anonymize_bytes(filename, content) bayt alır.
+İki ad hem modülde hem BBAnonym üzerinde aynı anlama gelir.
 """
 
 from __future__ import annotations
 
 import asyncio
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,7 +21,9 @@ import httpx
 
 # Müşteri kodu sunucudaki Data Mask konteynerine gider (8081).
 DEFAULT_BASE_URL = "https://app.bbmask.co"
-_KURGU0 = "Bu uç henüz açık değil."
+# Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.
+DEFAULT_TIMEOUT = 150.0
+VERSION = "0.3.0"
 
 PlaceholderStyle = Literal["angle", "bracket_tr"]
 PLACEHOLDER_STYLES = ("angle", "bracket_tr")
@@ -69,21 +74,50 @@ def _form(persist: bool, options: dict) -> dict:
     return data
 
 
-class BBAnonym:
-    def __init__(self, base_url: str, token: str, timeout: float = 120):
-        self.base_url = base_url.rstrip("/")
-        self.token = token
-        self.timeout = timeout
+def _mask(token: str) -> str:
+    return f"{token[:8]}…{token[-4:]}" if len(token) > 12 else "…"
 
-    def _headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.token}"}
+
+class BBAnonym:
+    """Tek anahtarın istemcisi. Bağlantı havuzu nesneyle yaşar; with ile ya da close() ile kapanır."""
+
+    def __init__(self, base_url: str, token: str, timeout: float = DEFAULT_TIMEOUT):
+        self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
+        self._token = token
+        self.timeout = timeout
+        self._http: httpx.Client | None = None
+        self._lock = threading.Lock()
+
+    def __repr__(self) -> str:
+        return f"BBAnonym(base_url={self.base_url!r}, token={_mask(self._token)!r}, timeout={self.timeout})"
+
+    def __enter__(self) -> BBAnonym:
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
+
+    def close(self) -> None:
+        with self._lock:
+            if self._http is not None:
+                self._http.close()
+                self._http = None
+
+    def _client(self) -> httpx.Client:
+        with self._lock:
+            if self._http is None:
+                self._http = httpx.Client(
+                    base_url=self.base_url,
+                    timeout=self.timeout,
+                    headers={"Authorization": f"Bearer {self._token}", "User-Agent": f"bb-mask-python/{VERSION}"},
+                )
+            return self._http
 
     def _send(self, method: str, path: str, **kwargs) -> httpx.Response:
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                return client.request(method, f"{self.base_url}{path}", headers=self._headers(), **kwargs)
+            return self._client().request(method, path, **kwargs)
         except httpx.TimeoutException as exc:
-            raise BBError(504, f"Zaman aşımı ({self.timeout} sn). Ücret düşmüş olabilir.") from exc
+            raise BBError(504, f"Zaman aşımı ({self.timeout:g} sn). Ücret düşmüş olabilir.") from exc
         except httpx.HTTPError as exc:
             raise BBError(503, f"Servise ulaşılamadı ({self.base_url})") from exc
 
@@ -102,8 +136,9 @@ class BBAnonym:
             body = response.json()
         except ValueError as exc:
             raise BBError(502, "Servis JSON dönmedi", request_id) from exc
-        if isinstance(body, dict):
-            body["_request_id"] = request_id
+        if not isinstance(body, dict):
+            raise BBError(502, "Servis JSON dönmedi", request_id)
+        body["_request_id"] = request_id
         return body
 
     def _tagged(self, body: dict, persist: bool) -> Tagged:
@@ -145,7 +180,7 @@ class BBAnonym:
         response = self._send("POST", "/v1/anonymize", json={"text": text, "persist": persist, **options})
         return self._tagged(self._parse(response), persist)
 
-    def anonymize_file(
+    def anonymize_bytes(
         self,
         filename: str,
         content: bytes,
@@ -166,7 +201,7 @@ class BBAnonym:
         )
         return self._tagged(self._parse(response), persist)
 
-    def anonymize_path(
+    def anonymize_file(
         self,
         path: str | Path,
         persist: bool = True,
@@ -178,7 +213,7 @@ class BBAnonym:
     ) -> Tagged:
         """Yoldan tek dosya. 1 kredi. Seçenekler anonymize ile aynı."""
         file_path = Path(path)
-        return self.anonymize_file(
+        return self.anonymize_bytes(
             file_path.name,
             file_path.read_bytes(),
             persist,
@@ -226,18 +261,9 @@ class BBAnonym:
         response = self._send("DELETE", f"/v1/mappings/{quote(doc_id, safe='')}")
         return bool(self._parse(response).get("deleted"))
 
-    def complete(self, text: str) -> str:
-        raise BBError(501, _KURGU0)
-
-    def complete_file(self, path: str | Path) -> str:
-        raise BBError(501, _KURGU0)
-
-    def complete_documents(self, paths: list[str | Path]) -> str:
-        raise BBError(501, _KURGU0)
-
 
 class MaskSession:
-    """Kurgu 4. persist=True ise harita bizde kalır ve çıkışta silinir.
+    """persist=True ise harita bizde kalır ve çıkışta silinir.
     persist=False ise state oturum nesnesindedir. Seçenekler oturum boyunca sabittir."""
 
     def __init__(
@@ -268,7 +294,7 @@ class MaskSession:
         return self._remember(self._client.anonymize(text, self.persist, **self.options))
 
     def anonymize_file(self, path: str | Path) -> Tagged:
-        return self._remember(self._client.anonymize_path(path, self.persist, **self.options))
+        return self._remember(self._client.anonymize_file(path, self.persist, **self.options))
 
     def anonymize_documents(self, paths: list[str | Path]) -> Tagged:
         return self._remember(self._client.anonymize_documents(paths, self.persist, **self.options))
@@ -297,7 +323,7 @@ class MaskSession:
 _current: BBAnonym | None = None
 
 
-def init(api_key: str, base_url: str = DEFAULT_BASE_URL, timeout: float = 120) -> BBAnonym:
+def init(api_key: str, base_url: str = DEFAULT_BASE_URL, timeout: float = DEFAULT_TIMEOUT) -> BBAnonym:
     """Süreçte bir kez. Model çağrısı değildir."""
     global _current
     if not api_key.strip():
@@ -349,8 +375,30 @@ def anonymize_file(
     llm_review: bool = False,
 ) -> Tagged:
     """Yoldan tek dosya (.txt, .pdf, .docx). 1 kredi. Seçenekler anonymize ile aynı."""
-    return _require().anonymize_path(
+    return _require().anonymize_file(
         path,
+        persist,
+        placeholder_style=placeholder_style,
+        keep_legal_form=keep_legal_form,
+        health_data=health_data,
+        llm_review=llm_review,
+    )
+
+
+def anonymize_bytes(
+    filename: str,
+    content: bytes,
+    persist: bool = True,
+    *,
+    placeholder_style: PlaceholderStyle = "angle",
+    keep_legal_form: bool = False,
+    health_data: bool = False,
+    llm_review: bool = False,
+) -> Tagged:
+    """Bayttan tek dosya. 1 kredi. Seçenekler anonymize ile aynı."""
+    return _require().anonymize_bytes(
+        filename,
+        content,
         persist,
         placeholder_style=placeholder_style,
         keep_legal_form=keep_legal_form,
@@ -389,18 +437,6 @@ def get_map(doc_id: str, once: bool = False) -> dict:
 
 def delete(doc_id: str) -> bool:
     return _require().delete(doc_id)
-
-
-def complete(text: str) -> str:
-    return _require().complete(text)
-
-
-def complete_file(path: str | Path) -> str:
-    return _require().complete_file(path)
-
-
-def complete_documents(paths: list[str | Path]) -> str:
-    return _require().complete_documents(paths)
 
 
 @contextmanager
@@ -492,8 +528,3 @@ async def aanonymize_documents(
 
 async def arestore(doc_id_or_state: str | dict, model_text: str) -> str:
     return await asyncio.to_thread(restore, doc_id_or_state, model_text)
-
-
-async def acomplete(text: str) -> str:
-    return await asyncio.to_thread(complete, text)
-

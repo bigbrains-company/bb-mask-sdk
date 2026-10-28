@@ -7,11 +7,14 @@ import java.util.Map;
 /**
  * Data Mask anonimleştirme servisinin Java istemcisi. Model çağırmaz.
  * Spring servisi bu sınıfı kendi bean'inde kurar; paket Spring'e bağlanmaz.
+ * anonymizeFile(path) yolu okur; anonymizeBytes(filename, content) bayt alır.
+ * İki ad hem burada hem {@link BBAnonym} üzerinde aynı anlama gelir.
  */
 public final class BbMask {
-    public static final String VERSION = "0.2.0";
+    public static final String VERSION = "0.3.0";
     public static final String DEFAULT_BASE_URL = "https://app.bbmask.co";
-    public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(120);
+    /** Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin. */
+    public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(150);
     public static final String STYLE_ANGLE = "angle";
     public static final String STYLE_BRACKET_TR = "bracket_tr";
 
@@ -65,9 +68,18 @@ public final class BbMask {
         return anonymizeFile(path, null);
     }
 
-    /** Yolu okur. Bayt sizdeyse {@link BBAnonym#anonymizeFile(String, byte[], Options)} kullanın. */
+    /** Yolu okur ve tek dosya gönderir. */
     public static Tagged anonymizeFile(String path, Options options) {
-        return require().anonymizePath(path, options);
+        return require().anonymizeFile(path, options);
+    }
+
+    public static Tagged anonymizeBytes(String filename, byte[] content) {
+        return anonymizeBytes(filename, content, null);
+    }
+
+    /** Bayt sizdeyse. */
+    public static Tagged anonymizeBytes(String filename, byte[] content, Options options) {
+        return require().anonymizeBytes(filename, content, options);
     }
 
     public static Tagged anonymizeDocuments(List<String> paths) {
@@ -96,17 +108,5 @@ public final class BbMask {
 
     public static MaskSession session(Options options) {
         return new MaskSession(require(), Options.resolve(options));
-    }
-
-    public static String complete(String text) {
-        return require().complete(text);
-    }
-
-    public static String completeFile(String path) {
-        return require().completeFile(path);
-    }
-
-    public static String completeDocuments(List<String> paths) {
-        return require().completeDocuments(paths);
     }
 }

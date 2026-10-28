@@ -45,7 +45,7 @@ export BB_ANONYM_TOKEN="dm_test_..."
 istemci = bb_mask.init(
     api_key=os.environ["BB_ANONYM_TOKEN"],
     base_url="https://app.bbmask.co",  # varsayılan budur
-    timeout=120,                       # saniye
+    timeout=150,                       # saniye
 )
 ```
 
@@ -53,14 +53,14 @@ istemci = bb_mask.init(
 |---|---|---|
 | `api_key` | `str` | Konsoldaki `dm_test_` anahtarı. Boşsa `BBError(401)`. |
 | `base_url` | `str` | Servis adresi. Varsayılan `https://app.bbmask.co`. |
-| `timeout` | `float` | HTTP zaman aşımı, saniye. Varsayılan `120`. |
+| `timeout` | `float` | HTTP zaman aşımı, saniye. Varsayılan `150`; motor 120 sn bekler, istemci ondan sonra pes eder. |
 
 Dönüş `BBAnonym`'dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `init` öncekinin yerine geçer.
 
 İkinci bir anahtar gerekiyorsa süreç globaline dokunmadan `BBAnonym` kurun. Kurucu `init` istemez.
 
 ```python
-diger = bb_mask.BBAnonym("https://app.bbmask.co", token, timeout=120)
+diger = bb_mask.BBAnonym("https://app.bbmask.co", token, timeout=150)
 ```
 
 ## Nesneler
@@ -93,7 +93,7 @@ Etiket biçimi `<TIP_0>`. Aynı yüzey aynı numarayı alır. Model etiketi boza
 
 ### Seçenekler
 
-Dört anonymize çağrısı (`anonymize`, `anonymize_file`, `anonymize_documents`, `anonymize_path`), async kardeşleri ve `session()` aynı isimli parametreleri alır. Yalnız isimle verilir. Hepsi kapalı başlar; servis kendi varsayılanına düşmez.
+Dört anonymize çağrısı (`anonymize`, `anonymize_file`, `anonymize_bytes`, `anonymize_documents`), async kardeşleri ve `session()` aynı isimli parametreleri alır. Yalnız isimle verilir. Hepsi kapalı başlar; servis kendi varsayılanına düşmez.
 
 | Parametre | Varsayılan | Etki |
 |---|---|---|
@@ -142,7 +142,6 @@ Ağ hatası da `BBError` olur; `httpx` istisnası dışarı sızmaz.
 | 402 | Bakiye yok. Anonimleştirme servise gitmez. |
 | 404 | Harita yok. Silinmiş, `once=True` ile okunmuş, başka çalışma alanının veya servis tutmuyordur. |
 | 413 | Dosya 20 MB üstü. |
-| 501 | `complete` ailesi. Bu uç henüz açık değil. |
 | 502 | Motor hata verdi; anonymize ücreti iade edilir. Yanıt JSON değilse de 502 olur. |
 | 503 | Servise ulaşılamadı. İstek gitmedi. |
 | 504 | `timeout` doldu. İstek servise ulaşmış olabilir; ücret düşmüş olabilir. Konsoldaki Kullanım sayfasına bakın. |
@@ -169,7 +168,7 @@ Ağ hatası da `BBError` olur; `httpx` istisnası dışarı sızmaz.
 
 Hepsi `init` sonrasında. Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
 
-Modül düzeyinde `anonymize_file(path)` bir yol alır ve dosyayı okur; içeride `BBAnonym.anonymize_path` çağrılır. Bayt sizdeyse `BBAnonym.anonymize_file(filename, content)` kullanın. `MaskSession.anonymize_file(path)` de yolu okur.
+`anonymize_file(path)` bir yol alır ve dosyayı okur. Bayt sizdeyse `anonymize_bytes(filename, content)` kullanın. İki ad modülde ve `BBAnonym` üzerinde aynı anlama gelir. `MaskSession.anonymize_file(path)` de yolu okur.
 
 ### Kurgu 1 — harita serviste, siz `doc_id` tutarsınız
 
@@ -250,20 +249,15 @@ with bb_mask.session(persist=False) as s:
     duz = s.restore(kendi_llm(tagged.text))
 ```
 
-### Kurgu 0 — `complete`
-
-Adlar durur: `complete`, `complete_file`, `complete_documents`, `acomplete`. HTTP çağrısı yapmazlar. `init` yoksa `BBError(401)`, varsa `BBError(501)`. `BBAnonym` üzerindeki aynı metotlar doğrudan `501` verir.
-
 ### Async
 
-Beş fonksiyon vardır. İmzalar senkron kardeşleriyle aynıdır. HTTP işi bir thread’de yürür. `init` bunlarda da gerekir.
+Dört fonksiyon vardır. İmzalar senkron kardeşleriyle aynıdır. HTTP işi bir thread’de yürür. `init` bunlarda da gerekir.
 
 ```python
 aanonymize(text, persist=True, *, <seçenekler>) -> Tagged
 aanonymize_file(path, persist=True, *, <seçenekler>) -> Tagged
 aanonymize_documents(paths, persist=True, *, <seçenekler>) -> Tagged
 arestore(doc_id_or_state, model_text) -> str
-acomplete(text) -> str
 ```
 
 ```python
@@ -271,7 +265,7 @@ tagged = await bb_mask.aanonymize(metin)
 duz = await bb_mask.arestore(tagged.doc_id, cevap)
 ```
 
-`get_map`, `delete`, `session`, `complete_file` ve `complete_documents` için async karşılık yoktur.
+`get_map`, `delete`, `session` ve `anonymize_bytes` için async karşılık yoktur.
 
 ## Referans
 
@@ -280,22 +274,19 @@ Modül fonksiyonları `init` ister. `BBAnonym` metotları kurucudaki anahtarı k
 ### Modül
 
 ```python
-init(api_key: str, base_url: str = "https://app.bbmask.co", timeout: float = 120) -> BBAnonym
+init(api_key: str, base_url: str = "https://app.bbmask.co", timeout: float = 150) -> BBAnonym
 anonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
 anonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
+anonymize_bytes(filename: str, content: bytes, persist: bool = True, *, <seçenekler>) -> Tagged
 anonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
 restore(doc_id_or_state: str | dict, model_text: str) -> str
 get_map(doc_id: str, once: bool = False) -> dict
 delete(doc_id: str) -> bool
 session(persist: bool = True, *, <seçenekler>)  # with ile MaskSession
-complete(text: str) -> str
-complete_file(path: str | Path) -> str
-complete_documents(paths: list[str | Path]) -> str
 aanonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
 aanonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
 aanonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
 arestore(doc_id_or_state: str | dict, model_text: str) -> str
-acomplete(text: str) -> str
 ```
 
 `<seçenekler>` yalnız isimle verilen dört parametredir; imzada açıkça yazılıdır, editör tamamlar, `help(bb_mask.anonymize)` açıklar:
@@ -317,27 +308,23 @@ llm_review: bool = False,
 
 `session` context manager'dır: `with bb_mask.session() as s`. Çıkışta `s.close()` çalışır.
 
-`complete`, `complete_file`, `complete_documents` ve `acomplete` HTTP çağırmaz. `init` yoksa `401`, varsa `501`.
-
 ### `BBAnonym`
 
-`init` gerekmez. Modüldeki `anonymize_file`'dan farklı olarak burada dosya ikiye ayrılır: ad ve bayt. Yolu okuyan metot `anonymize_path`'tir.
+`init` gerekmez. Modülle aynı adları taşır. Tek bir `httpx.Client` paylaşır (bağlantı havuzu); `with` ile veya `close()` ile kapatılır. `repr()` anahtarı maskeler.
 
 ```python
-BBAnonym(base_url: str, token: str, timeout: float = 120)
+BBAnonym(base_url: str, token: str, timeout: float = 150)
 anonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_file(filename: str, content: bytes, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_path(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
+anonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
+anonymize_bytes(filename: str, content: bytes, persist: bool = True, *, <seçenekler>) -> Tagged
 anonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
 restore(doc_id_or_state: str | dict, model_text: str) -> str
 get_map(doc_id: str, once: bool = False) -> dict
 delete(doc_id: str) -> bool
-complete(text: str) -> str
-complete_file(path: str | Path) -> str
-complete_documents(paths: list[str | Path]) -> str
+close() -> None
 ```
 
-`complete` ailesi dosyayı okumaz; çağrı anında `BBError(501)` verir.
+Paket `py.typed` taşır; tip denetleyiciler imzaları okur.
 
 ### `MaskSession`
 

@@ -63,21 +63,21 @@ export BB_ANONYM_TOKEN="dm_test_..."
 var istemci = BbMask.Init(
     Environment.GetEnvironmentVariable("BB_ANONYM_TOKEN"),
     "https://app.bbmask.co",
-    TimeSpan.FromSeconds(120));
+    TimeSpan.FromSeconds(150));
 ```
 
 | Argüman | Anlam |
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
 | `baseUrl` | Servis adresi. Boşsa `https://app.bbmask.co`. |
-| `timeout` | HTTP zaman aşımı. Boşsa 120 saniye. |
+| `timeout` | HTTP zaman aşımı. Boşsa 150 saniye; motor 120 sn bekler, istemci ondan sonra pes eder. |
 
 Dönüş `BBAnonym`'dur. İkinci `Init` öncekinin yerine geçer.
 
 İkinci bir anahtar gerekiyorsa `Init` kullanmadan kurun. ASP.NET Core'da bu nesne singleton olabilir.
 
 ```csharp
-var diger = new BBAnonym("https://app.bbmask.co", token, TimeSpan.FromSeconds(120));
+var diger = new BBAnonym("https://app.bbmask.co", token, TimeSpan.FromSeconds(150));
 builder.Services.AddSingleton(diger);
 ```
 
@@ -135,7 +135,6 @@ var tagged = await BbMask.AnonymizeAsync(metin, new AnonymizeOptions
 | 402 | Bakiye yok. |
 | 404 | Harita yok. |
 | 413 | Dosya 20 MB üstü. |
-| 501 | `Complete` ailesi. Bu uç henüz açık değil. |
 | 502 | Yanıt JSON değil. |
 | 503 | Servise ulaşılamadı. |
 | 504 | Zaman aşımı doldu. İstek servise ulaşmış olabilir. |
@@ -144,7 +143,7 @@ var tagged = await BbMask.AnonymizeAsync(metin, new AnonymizeOptions
 
 Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
 
-Modül düzeyinde `AnonymizeFile(path)` yolu okur. Bayt sizdeyse `BBAnonym.AnonymizeFile(filename, content)` kullanın. Yolu okuyan metot `AnonymizePath`'tir.
+`AnonymizeFile(path)` yolu okur. Bayt sizdeyse `AnonymizeBytes(filename, content)` kullanın; iki ad `BbMask` ve `BBAnonym` üzerinde aynı anlama gelir.
 
 ### Harita serviste
 
@@ -189,25 +188,21 @@ var duz = await s.RestoreAsync(cevap);
 
 `BBAnonym` eşzamanlı çağrılabilir. Aynı `MaskSession` sırayla kullanılır.
 
-### `Complete`
-
-`Complete`, `CompleteFile` ve `CompleteDocuments` HTTP çağırmaz. `Init` yoksa 401, varsa 501. `BBAnonym` üzerindeki aynı metotlar doğrudan 501 fırlatır.
-
 ## Referans
 
 ```csharp
 Init(apiKey, baseUrl = null, timeout = null) -> BBAnonym
 Anonymize / AnonymizeAsync(text, options) -> Tagged
 AnonymizeFile / AnonymizeFileAsync(path, options) -> Tagged
+AnonymizeBytes / AnonymizeBytesAsync(filename, content, options) -> Tagged
 AnonymizeDocuments / AnonymizeDocumentsAsync(paths, options) -> Tagged
 Restore / RestoreAsync(docIdOrState, modelText) -> string
 GetMap / GetMapAsync(docId, once = false) -> Dictionary<string, object?>
 Delete / DeleteAsync(docId) -> bool
 Session(options) -> MaskSession
-Complete / CompleteFile / CompleteDocuments
 ```
 
-Async metotlar sonda `CancellationToken` alır. `New` kurucu `Init` istemez. Dosya burada ikiye ayrılır: `AnonymizeFile(filename, content)` bayt alır, `AnonymizePath(path)` yolu okur.
+Async metotlar sonda `CancellationToken` alır. `BBAnonym` kurucu `Init` istemez; aynı metotları taşır. Anahtar dışa açık özellik değildir; `ToString()` maskeler.
 
 `MaskSession`: `Anonymize`, `AnonymizeFile`, `AnonymizeDocuments`, `Restore`, `Close`. `Dispose` ve `DisposeAsync` `Close` çağırır.
 

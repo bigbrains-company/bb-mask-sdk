@@ -1,3 +1,3 @@
-module github.com/bigbrains/bb-mask-sdk/go
+module github.com/bigbrains-company/bb-mask-sdk/go
 
 go 1.22

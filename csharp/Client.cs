@@ -7,12 +7,15 @@ namespace BigBrains;
 
 /// <summary>
 /// Data Mask anonimleştirme servisinin .NET istemcisi. Model çağırmaz.
+/// AnonymizeFile(path) yolu okur; AnonymizeBytes(filename, content) bayt alır.
+/// İki ad hem burada hem <see cref="BBAnonym"/> üzerinde aynı anlama gelir.
 /// </summary>
 public static class BbMask
 {
-    public const string Version = "0.2.0";
+    public const string Version = "0.3.0";
     public const string DefaultBaseUrl = "https://app.bbmask.co";
-    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
+    /// <summary>Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.</summary>
+    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(150);
     public const string StyleAngle = "angle";
     public const string StyleBracketTr = "bracket_tr";
 
@@ -53,11 +56,19 @@ public static class BbMask
     public static Tagged Anonymize(string text, AnonymizeOptions? options = null)
         => AnonymizeAsync(text, options).GetAwaiter().GetResult();
 
+    /// <summary>Yolu okur ve tek dosya gönderir.</summary>
     public static Task<Tagged> AnonymizeFileAsync(string path, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
-        => Require().AnonymizePathAsync(path, options, cancellationToken);
+        => Require().AnonymizeFileAsync(path, options, cancellationToken);
 
     public static Tagged AnonymizeFile(string path, AnonymizeOptions? options = null)
         => AnonymizeFileAsync(path, options).GetAwaiter().GetResult();
+
+    /// <summary>Bayt sizdeyse.</summary>
+    public static Task<Tagged> AnonymizeBytesAsync(string filename, byte[] content, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
+        => Require().AnonymizeBytesAsync(filename, content, options, cancellationToken);
+
+    public static Tagged AnonymizeBytes(string filename, byte[] content, AnonymizeOptions? options = null)
+        => AnonymizeBytesAsync(filename, content, options).GetAwaiter().GetResult();
 
     public static Task<Tagged> AnonymizeDocumentsAsync(IReadOnlyList<string> paths, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
         => Require().AnonymizeDocumentsAsync(paths, options, cancellationToken);
@@ -85,21 +96,6 @@ public static class BbMask
 
     public static MaskSession Session(AnonymizeOptions? options = null)
         => new(Require(), AnonymizeOptions.Resolve(options));
-
-    public static Task<string> CompleteAsync(string text, CancellationToken cancellationToken = default)
-        => Require().CompleteAsync(text, cancellationToken);
-
-    public static string Complete(string text) => Require().Complete(text);
-
-    public static Task<string> CompleteFileAsync(string path, CancellationToken cancellationToken = default)
-        => Require().CompleteFileAsync(path, cancellationToken);
-
-    public static string CompleteFile(string path) => Require().CompleteFile(path);
-
-    public static Task<string> CompleteDocumentsAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default)
-        => Require().CompleteDocumentsAsync(paths, cancellationToken);
-
-    public static string CompleteDocuments(IReadOnlyList<string> paths) => Require().CompleteDocuments(paths);
 }
 
 /// <summary>Servis veya istemci hatası. <see cref="Exception.Message"/> ayrıntı metnidir.</summary>
@@ -159,30 +155,35 @@ public sealed class AnonymizeOptions
     }
 }
 
-/// <summary>Tek anahtarın istemcisi. Init gerekmez.</summary>
+/// <summary>Tek anahtarın istemcisi. Init gerekmez. Anahtar dışa açık değildir; ToString maskeler.</summary>
 public sealed class BBAnonym : IDisposable
 {
-    private const string NotOpen = "Bu uç henüz açık değil.";
-
     public string BaseUrl { get; }
-    public string Token { get; }
     public TimeSpan Timeout { get; }
+    private readonly string _token;
     private readonly HttpClient _http;
 
     public BBAnonym(string? baseUrl, string? token, TimeSpan? timeout = null)
     {
         var trimmed = (baseUrl ?? "").Trim().TrimEnd('/');
         BaseUrl = trimmed.Length == 0 ? BbMask.DefaultBaseUrl : trimmed;
-        Token = token ?? "";
+        _token = token ?? "";
         Timeout = timeout is { } value && value > TimeSpan.Zero ? value : BbMask.DefaultTimeout;
         _http = new HttpClient(new SocketsHttpHandler { UseCookies = false })
         {
             Timeout = Timeout,
         };
         _http.DefaultRequestHeaders.ExpectContinue = false;
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("bb-mask-dotnet/" + BbMask.Version);
     }
 
     public void Dispose() => _http.Dispose();
+
+    public override string ToString()
+    {
+        var masked = _token.Length > 12 ? _token[..8] + "…" + _token[^4..] : "***";
+        return $"BBAnonym(BaseUrl={BaseUrl}, Token={masked}, Timeout={Timeout})";
+    }
 
     public Task<Tagged> AnonymizeAsync(string text, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
     {
@@ -202,24 +203,26 @@ public sealed class BBAnonym : IDisposable
     public Tagged Anonymize(string text, AnonymizeOptions? options = null)
         => AnonymizeAsync(text, options).GetAwaiter().GetResult();
 
-    public async Task<Tagged> AnonymizeFileAsync(string filename, byte[] content, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
+    /// <summary>Bayttan tek dosya gönderir (.txt, .pdf, .docx).</summary>
+    public async Task<Tagged> AnonymizeBytesAsync(string filename, byte[] content, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
     {
         var resolved = AnonymizeOptions.Resolve(options);
         using var form = Form(resolved, new[] { ("file", filename, content) });
         return await SendTaggedAsync(HttpMethod.Post, "/v1/anonymize/file", form, null, resolved.Persist, cancellationToken).ConfigureAwait(false);
     }
 
-    public Tagged AnonymizeFile(string filename, byte[] content, AnonymizeOptions? options = null)
-        => AnonymizeFileAsync(filename, content, options).GetAwaiter().GetResult();
+    public Tagged AnonymizeBytes(string filename, byte[] content, AnonymizeOptions? options = null)
+        => AnonymizeBytesAsync(filename, content, options).GetAwaiter().GetResult();
 
-    public async Task<Tagged> AnonymizePathAsync(string path, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
+    /// <summary>Yolu okur ve tek dosya gönderir.</summary>
+    public async Task<Tagged> AnonymizeFileAsync(string path, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
     {
         var content = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-        return await AnonymizeFileAsync(Path.GetFileName(path), content, options, cancellationToken).ConfigureAwait(false);
+        return await AnonymizeBytesAsync(Path.GetFileName(path), content, options, cancellationToken).ConfigureAwait(false);
     }
 
-    public Tagged AnonymizePath(string path, AnonymizeOptions? options = null)
-        => AnonymizePathAsync(path, options).GetAwaiter().GetResult();
+    public Tagged AnonymizeFile(string path, AnonymizeOptions? options = null)
+        => AnonymizeFileAsync(path, options).GetAwaiter().GetResult();
 
     public async Task<Tagged> AnonymizeDocumentsAsync(IReadOnlyList<string> paths, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
     {
@@ -274,21 +277,6 @@ public sealed class BBAnonym : IDisposable
 
     public bool Delete(string docId) => DeleteAsync(docId).GetAwaiter().GetResult();
 
-    public Task<string> CompleteAsync(string text, CancellationToken cancellationToken = default)
-        => throw new BBError(501, NotOpen);
-
-    public string Complete(string text) => throw new BBError(501, NotOpen);
-
-    public Task<string> CompleteFileAsync(string path, CancellationToken cancellationToken = default)
-        => throw new BBError(501, NotOpen);
-
-    public string CompleteFile(string path) => throw new BBError(501, NotOpen);
-
-    public Task<string> CompleteDocumentsAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default)
-        => throw new BBError(501, NotOpen);
-
-    public string CompleteDocuments(IReadOnlyList<string> paths) => throw new BBError(501, NotOpen);
-
     private async Task<Tagged> SendTaggedAsync(HttpMethod method, string path, HttpContent content, string? query, bool persist, CancellationToken cancellationToken)
     {
         var body = await SendAsync(method, path, content, query, cancellationToken).ConfigureAwait(false);
@@ -301,7 +289,7 @@ public sealed class BBAnonym : IDisposable
         if (!string.IsNullOrEmpty(query))
             url += "?" + query;
         using var request = new HttpRequestMessage(method, url) { Content = content };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
         try
         {
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
@@ -500,7 +488,7 @@ public sealed class MaskSession : IDisposable, IAsyncDisposable
 
     public async Task<Tagged> AnonymizeFileAsync(string path, CancellationToken cancellationToken = default)
     {
-        var tagged = await _client.AnonymizePathAsync(path, _options, cancellationToken).ConfigureAwait(false);
+        var tagged = await _client.AnonymizeFileAsync(path, _options, cancellationToken).ConfigureAwait(false);
         return Remember(tagged);
     }
 

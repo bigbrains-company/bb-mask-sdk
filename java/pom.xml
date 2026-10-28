@@ -4,11 +4,32 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.bigbrains</groupId>
+  <groupId>tr.com.bigbrains</groupId>
   <artifactId>bb-mask</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <name>bb-mask</name>
   <description>bb-mask istemcisi. anonymize ve restore; model çağrısı yok.</description>
+  <url>https://app.bbmask.co/#/sdk</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>BigBrains</name>
+      <organization>BigBrains</organization>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/bigbrains-company/bb-mask-sdk.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/bigbrains-company/bb-mask-sdk.git</developerConnection>
+    <url>https://github.com/bigbrains-company/bb-mask-sdk</url>
+  </scm>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

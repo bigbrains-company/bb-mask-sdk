@@ -1,22 +1,22 @@
-"""Kurgu 0–4 çağrı yüzeyi. Müşteri LLM çağrısı bu pakette yoktur."""
+"""Data Mask istemcisi. Müşteri LLM çağrısı bu pakette yoktur."""
 
 from bb_mask.client import (
+    DEFAULT_BASE_URL,
+    DEFAULT_TIMEOUT,
+    VERSION,
     BBAnonym,
     BBError,
     MaskSession,
     PlaceholderStyle,
     Tagged,
-    acomplete,
     aanonymize,
     aanonymize_documents,
     aanonymize_file,
     anonymize,
+    anonymize_bytes,
     anonymize_documents,
     anonymize_file,
     arestore,
-    complete,
-    complete_documents,
-    complete_file,
     delete,
     get_map,
     init,
@@ -24,23 +24,25 @@ from bb_mask.client import (
     session,
 )
 
+__version__ = VERSION
+
 __all__ = [
+    "DEFAULT_BASE_URL",
+    "DEFAULT_TIMEOUT",
+    "VERSION",
     "BBAnonym",
     "BBError",
     "MaskSession",
     "PlaceholderStyle",
     "Tagged",
-    "acomplete",
     "aanonymize",
     "aanonymize_documents",
     "aanonymize_file",
     "anonymize",
+    "anonymize_bytes",
     "anonymize_documents",
     "anonymize_file",
     "arestore",
-    "complete",
-    "complete_documents",
-    "complete_file",
     "delete",
     "get_map",
     "init",

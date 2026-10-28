@@ -30,20 +30,20 @@ Teldeki alan adları Python ile aynıdır: `doc_id`, `placeholder_style`, `keep_
 
 ## Kurulum
 
-Modül yolu `github.com/bigbrains/bb-mask-sdk/go`, paket adı `bbmask`. Yayın deposunun adresi değişirse `go.mod` ilk satırı da değişir.
+Modül yolu `github.com/bigbrains-company/bb-mask-sdk/go`, paket adı `bbmask`. Depo https://github.com/bigbrains-company/bb-mask-sdk; `go.mod` ilk satırı bununla aynıdır.
 
 Paket yayınlanınca:
 
 ```bash
-go get github.com/bigbrains/bb-mask-sdk/go@v0.2.0
+go get github.com/bigbrains-company/bb-mask-sdk/go@v0.3.0
 ```
 
 Bu depoyu çektikten sonra tüketen modülün `go.mod` dosyasına:
 
 ```text
-require github.com/bigbrains/bb-mask-sdk/go v0.2.0
+require github.com/bigbrains-company/bb-mask-sdk/go v0.3.0
 
-replace github.com/bigbrains/bb-mask-sdk/go => /yol/bb-mask-sdk/go
+replace github.com/bigbrains-company/bb-mask-sdk/go => /yol/bb-mask-sdk/go
 ```
 
 `replace` sağındaki yol, bu `go` klasörünün diskteki yeridir. Depo kökünde modül varsa `./bb-mask-sdk/go` yazılır.
@@ -61,7 +61,7 @@ export BB_ANONYM_TOKEN="dm_test_..."
 ```
 
 ```go
-import "github.com/bigbrains/bb-mask-sdk/go"
+import "github.com/bigbrains-company/bb-mask-sdk/go"
 ```
 
 `Init` süreçte bir kez çalışır. Model çağrısı değildir. Modül fonksiyonları bundan önce çağrılırsa `BBError` 401 döner ve servise gitmez.
@@ -69,7 +69,7 @@ import "github.com/bigbrains/bb-mask-sdk/go"
 ```go
 istemci, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"), bbmask.Config{
     BaseURL: "https://app.bbmask.co", // varsayılan budur
-    Timeout: 120 * time.Second,         // varsayılan budur
+    Timeout: 150 * time.Second,         // varsayılan budur
 })
 ```
 
@@ -77,14 +77,14 @@ istemci, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"), bbmask.Config{
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
 | `BaseURL` | Servis adresi. Boşsa `https://app.bbmask.co`. |
-| `Timeout` | HTTP zaman aşımı. Sıfırsa 120 saniye. |
+| `Timeout` | HTTP zaman aşımı. Sıfırsa 150 saniye; motor 120 sn bekler, istemci ondan sonra pes eder. |
 
 Dönüş `*BBAnonym`’dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `Init` öncekinin yerine geçer.
 
 İkinci bir anahtar gerekiyorsa `Init` kullanmadan `New` kurun.
 
 ```go
-diger := bbmask.New("https://app.bbmask.co", token, 120*time.Second)
+diger := bbmask.New("https://app.bbmask.co", token, 150*time.Second)
 ```
 
 ## Nesneler
@@ -147,7 +147,6 @@ if errors.As(err, &bb) && bb.StatusCode == 402 {
 | 402 | Bakiye yok. |
 | 404 | Harita yok. |
 | 413 | Dosya 20 MB üstü. |
-| 501 | `Complete` ailesi. Bu uç henüz açık değil. |
 | 502 | Yanıt JSON değil. |
 | 503 | Servise ulaşılamadı. |
 | 504 | `Timeout` doldu. İstek servise ulaşmış olabilir. |
@@ -156,7 +155,7 @@ if errors.As(err, &bb) && bb.StatusCode == 402 {
 
 Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
 
-Modül düzeyinde `AnonymizeFile(path)` yolu okur. Bayt sizdeyse `BBAnonym.AnonymizeFile(filename, content)` kullanın. Yolu okuyan metot `AnonymizePath`’tir.
+`AnonymizeFile(path)` yolu okur. Bayt sizdeyse `AnonymizeBytes(filename, content)` kullanın; iki ad pakette ve `BBAnonym` üzerinde aynı anlama gelir.
 
 ### Harita serviste
 
@@ -210,27 +209,21 @@ duz, err := s.Restore(cevap)
 s, err := bbmask.Session(bbmask.WithPersist(false), bbmask.WithPlaceholderStyle("bracket_tr"))
 ```
 
-### `Complete`
-
-`Complete`, `CompleteFile` ve `CompleteDocuments` HTTP çağırmaz. `Init` yoksa 401, varsa 501. `BBAnonym` üzerindeki aynı metotlar doğrudan 501 döner.
-
 ## Referans
 
 ```go
 Init(apiKey string, cfg ...Config) (*BBAnonym, error)
 Anonymize(text string, opts ...Option) (*Tagged, error)
 AnonymizeFile(path string, opts ...Option) (*Tagged, error)
+AnonymizeBytes(filename string, content []byte, opts ...Option) (*Tagged, error)
 AnonymizeDocuments(paths []string, opts ...Option) (*Tagged, error)
 Restore(docIDOrState any, modelText string) (string, error)
 GetMap(docID string, once bool) (map[string]any, error)
 Delete(docID string) (bool, error)
 Session(opts ...Option) (*MaskSession, error)
-Complete(text string) (string, error)
-CompleteFile(path string) (string, error)
-CompleteDocuments(paths []string) (string, error)
 ```
 
-`New` kurucu `Init` istemez. Dosya burada ikiye ayrılır: `AnonymizeFile(filename, content)` bayt alır, `AnonymizePath(path)` yolu okur.
+`New` kurucu `Init` istemez; aynı metotları taşır. Anahtar dışa açık alan değildir; `%+v` ve `String()` maskeler.
 
 `MaskSession`: `Anonymize`, `AnonymizeFile`, `AnonymizeDocuments`, `Restore`, `Close`.
 

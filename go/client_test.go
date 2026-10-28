@@ -3,6 +3,7 @@ package bbmask
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -240,7 +241,7 @@ func TestFileUploadUsesMultipartFieldNames(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tagged, err := New(server.URL, "dm_test_abc").AnonymizePath(path, WithPersist(false))
+	tagged, err := New(server.URL, "dm_test_abc").AnonymizeFile(path, WithPersist(false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,25 +360,28 @@ func TestTimeoutIs504AndClosedPortIs503(t *testing.T) {
 	requireBB(t, err, 503)
 }
 
-func TestCompleteDoesNotCallTheService(t *testing.T) {
-	calls := 0
+func TestAnonymizeBytesSendsNameAndContent(t *testing.T) {
+	var body string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
 		writeJSON(w, 200, taggedBody(nil), "req-1")
 	}))
 	defer server.Close()
 
-	client := New(server.URL, "dm_test_abc")
-	for _, call := range []func() (string, error){
-		func() (string, error) { return client.Complete("x") },
-		func() (string, error) { return client.CompleteFile("x") },
-		func() (string, error) { return client.CompleteDocuments([]string{"x"}) },
-	} {
-		_, err := call()
-		requireBB(t, err, 501)
+	tagged, err := New(server.URL, "dm_test_abc").AnonymizeBytes("ek.pdf", []byte("%PDF"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if calls != 0 {
-		t.Fatalf("çağrı %d", calls)
+	if tagged.DocID != "doc-1" || !strings.Contains(body, `filename="ek.pdf"`) || !strings.Contains(body, "%PDF") {
+		t.Fatalf("gövde %q", body)
+	}
+}
+
+func TestTokenIsNotPrinted(t *testing.T) {
+	client := New("http://127.0.0.1:9", "dm_test_secret")
+	if strings.Contains(fmt.Sprintf("%+v", *client), "dm_test_secret") {
+		t.Fatal("anahtar yazdırıldı")
 	}
 }
 
@@ -533,15 +537,12 @@ func TestModuleCallsFollowInit(t *testing.T) {
 	if _, err := AnonymizeFile(path); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := AnonymizeBytes("ek.txt", []byte("ek")); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := AnonymizeDocuments([]string{path}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = Complete("x")
-	requireBB(t, err, 501)
-	_, err = CompleteFile(path)
-	requireBB(t, err, 501)
-	_, err = CompleteDocuments([]string{path})
-	requireBB(t, err, 501)
 	if auth != "Bearer dm_test_abc" {
 		t.Fatalf("auth %q", auth)
 	}
@@ -550,6 +551,7 @@ func TestModuleCallsFollowInit(t *testing.T) {
 		"/v1/restore",
 		"/v1/mappings/doc-1?once=false",
 		"/v1/mappings/doc-1",
+		"/v1/anonymize/file",
 		"/v1/anonymize/file",
 		"/v1/anonymize/documents",
 	}
@@ -571,12 +573,10 @@ func TestModuleCallsBeforeInit(t *testing.T) {
 
 	_, err := Anonymize("Ali")
 	requireBB(t, err, 401)
-	_, err = Complete("x")
+	_, err = AnonymizeBytes("a.txt", []byte("a"))
 	requireBB(t, err, 401)
 	_, err = Session()
 	requireBB(t, err, 401)
-	_, err = New("http://127.0.0.1:9", "dm_test_abc").Complete("x")
-	requireBB(t, err, 501)
 }
 
 func contains(items []string, want string) bool {
