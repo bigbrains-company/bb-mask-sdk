@@ -34,7 +34,7 @@ export BB_ANONYM_TOKEN="dm_test_..."
 ```js
 const istemci = init(process.env.BB_ANONYM_TOKEN, {
   baseUrl: "https://app.bbmask.co",
-  timeout: 120,
+  timeout: 150,
 });
 ```
 
@@ -42,14 +42,14 @@ const istemci = init(process.env.BB_ANONYM_TOKEN, {
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa `BBError(401)`. |
 | `baseUrl` | Servis adresi. Varsayılan `https://app.bbmask.co`. |
-| `timeout` | HTTP zaman aşımı, saniye. Varsayılan `120`. |
+| `timeout` | HTTP zaman aşımı, saniye. Varsayılan `150`; motor 120 sn bekler, istemci ondan sonra pes eder. |
 
 İkinci bir anahtar gerekiyorsa `init` kullanmadan `BBAnonym` kurun.
 
 ```js
 import { BBAnonym } from "bb-mask";
 
-const diger = new BBAnonym("https://app.bbmask.co", token, 120);
+const diger = new BBAnonym("https://app.bbmask.co", token, 150);
 ```
 
 ## Nesneler
@@ -96,7 +96,6 @@ Python adları da okunur: `placeholder_style`, `keep_legal_form`, `health_data`,
 | 402 | Bakiye yok. |
 | 404 | Harita yok. |
 | 413 | Dosya 20 MB üstü. |
-| 501 | `complete` ailesi. Bu uç henüz açık değil. |
 | 502 | Yanıt JSON değil. |
 | 503 | Servise ulaşılamadı. |
 | 504 | `timeout` doldu. İstek servise ulaşmış olabilir. |
@@ -105,7 +104,7 @@ Python adları da okunur: `placeholder_style`, `keep_legal_form`, `health_data`,
 
 Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
 
-Modül düzeyinde `anonymizeFile(path)` yolu okur. Bayt sizdeyse `BBAnonym.anonymizeFile(filename, content)` kullanın. `delete` JavaScript’te ayrılmış sözcük olduğu için silme metodu `deleteMapping`’dir.
+`anonymizeFile(path)` yolu okur. Bayt sizdeyse `anonymizeBytes(filename, content)` kullanın; iki ad modülde ve `BBAnonym` üzerinde aynı anlama gelir. `delete` JavaScript’te ayrılmış sözcük olduğu için silme metodu `deleteMapping`’dir.
 
 ### Harita serviste
 
@@ -119,6 +118,7 @@ Tek dosya ve birden çok dosya (üst sınır 3, tek `docId`, tek ücret):
 
 ```js
 const tagged = await anonymizeFile("dilekce.pdf");
+const bayt = await anonymizeBytes("dilekce.pdf", buffer);
 const coklu = await anonymizeDocuments(["dilekce.pdf", "cevap.docx", "ek.txt"]);
 ```
 
@@ -158,22 +158,18 @@ Node `await using` destekliyorsa `await using s = session()` aynı `close` çağ
 const s = session({ persist: false, placeholderStyle: "bracket_tr" });
 ```
 
-### `complete`
-
-`complete`, `completeFile` ve `completeDocuments` HTTP çağırmaz. `init` yoksa `BBError(401)`, varsa `BBError(501)`. `BBAnonym` üzerindeki aynı metotlar doğrudan `501` verir.
-
 ## Referans
 
 ```js
 init(apiKey, { baseUrl, timeout } = {})
 anonymize(text, options) -> Promise<Tagged>
 anonymizeFile(path, options) -> Promise<Tagged>
+anonymizeBytes(filename, content, options) -> Promise<Tagged>
 anonymizeDocuments(paths, options) -> Promise<Tagged>
 restore(docIdOrState, modelText) -> Promise<string>
 getMap(docId, once = false) -> Promise<object>
 deleteMapping(docId) -> Promise<boolean>
 session(options) -> MaskSession
-complete() / completeFile() / completeDocuments()
 ```
 
-`BBAnonym` kurucu `init` istemez. Dosya burada ikiye ayrılır: `anonymizeFile(filename, content)` bayt alır, `anonymizePath(path)` yolu okur.
+`BBAnonym` kurucu `init` istemez; aynı metotları taşır. `token` alanı sayılmaz (non-enumerable): `console.log` ve `JSON.stringify` anahtarı göstermez. Paket `index.d.ts` ile tip tanımı taşır.

@@ -10,9 +10,9 @@ import {
   BBAnonym,
   BBError,
   anonymize,
+  anonymizeBytes,
   anonymizeDocuments,
   anonymizeFile,
-  complete,
   deleteMapping,
   getMap,
   init,
@@ -199,12 +199,35 @@ test("file upload uses multipart field names", async () => {
     json(res, 200, taggedBody({ doc_id: "should-drop" }));
   });
   try {
-    const tagged = await new BBAnonym(server.url, "dm_test_abc").anonymizePath(path, { persist: false });
+    const tagged = await new BBAnonym(server.url, "dm_test_abc").anonymizeFile(path, { persist: false });
     assert.equal(tagged.docId, null);
   } finally {
     await server.close();
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("anonymizeBytes sends the given name and bytes", async () => {
+  const server = await listen(async (req, res, raw) => {
+    const body = raw.toString("latin1");
+    assert.equal(req.url, "/v1/anonymize/file");
+    assert.match(body, /filename="ek.pdf"/);
+    assert.match(body, /%PDF/);
+    json(res, 200, taggedBody());
+  });
+  try {
+    const tagged = await new BBAnonym(server.url, "dm_test_abc").anonymizeBytes("ek.pdf", Buffer.from("%PDF"));
+    assert.equal(tagged.docId, "doc-1");
+  } finally {
+    await server.close();
+  }
+});
+
+test("token is not enumerable", () => {
+  const client = new BBAnonym("http://127.0.0.1:9", "dm_test_secret");
+  assert.equal(client.token, "dm_test_secret");
+  assert.ok(!JSON.stringify(client).includes("dm_test_secret"));
+  assert.ok(!Object.keys(client).includes("token"));
 });
 
 test("documents sends one to three files and rejects other counts", async () => {
@@ -288,23 +311,6 @@ test("timeout is 504 and a closed port is 503", async () => {
   );
 });
 
-test("complete does not call the service", async () => {
-  let calls = 0;
-  const server = await listen(async (req, res) => {
-    calls += 1;
-    json(res, 200, taggedBody());
-  });
-  try {
-    const client = new BBAnonym(server.url, "dm_test_abc");
-    for (const call of [() => client.complete(), () => client.completeFile(), () => client.completeDocuments()]) {
-      assert.throws(call, (error) => error instanceof BBError && error.statusCode === 501);
-    }
-    assert.equal(calls, 0);
-  } finally {
-    await server.close();
-  }
-});
-
 test("session deletes stored ids and hides state when persist is false", async () => {
   const calls = [];
   const server = await listen(async (req, res, raw) => {
@@ -364,13 +370,14 @@ test("module calls follow init, including file helpers", async () => {
     assert.deepEqual(await getMap(tagged.docId), {});
     assert.equal(await deleteMapping(tagged.docId), false);
     await anonymizeFile(path);
+    await anonymizeBytes("ek.txt", Buffer.from("ek"));
     await anonymizeDocuments([path]);
-    assert.throws(() => complete(), (error) => error instanceof BBError && error.statusCode === 501);
     assert.deepEqual(seen, [
       "/v1/anonymize",
       "/v1/restore",
       "/v1/mappings/doc-1?once=false",
       "/v1/mappings/doc-1",
+      "/v1/anonymize/file",
       "/v1/anonymize/file",
       "/v1/anonymize/documents",
     ]);

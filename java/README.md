@@ -34,15 +34,15 @@ Teldeki alan adları Python ile aynıdır: `doc_id`, `placeholder_style`, `keep_
 
 ## Kurulum
 
-Maven koordinatı `com.bigbrains:bb-mask:0.2.0`. Grup kimliği yayın deposuna göre `pom.xml` içinde değişir.
+Maven koordinatı `tr.com.bigbrains:bb-mask:0.3.0`. Grup kimliği Central Portal’da doğrulanmış `tr.com.bigbrains` ad alanıdır; Java paket adı `com.bigbrains.bbmask` kalır.
 
 Paket yayınlanınca:
 
 ```xml
 <dependency>
-  <groupId>com.bigbrains</groupId>
+  <groupId>tr.com.bigbrains</groupId>
   <artifactId>bb-mask</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -64,14 +64,14 @@ export BB_ANONYM_TOKEN="dm_test_..."
 BBAnonym istemci = BbMask.init(
     System.getenv("BB_ANONYM_TOKEN"),
     "https://app.bbmask.co",
-    Duration.ofSeconds(120));
+    Duration.ofSeconds(150));
 ```
 
 | Argüman | Anlam |
 |---|---|
 | `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
 | `baseUrl` | Servis adresi. Boşsa `https://app.bbmask.co`. |
-| `timeout` | HTTP zaman aşımı. Boşsa 120 saniye. |
+| `timeout` | HTTP zaman aşımı. Boşsa 150 saniye; motor 120 sn bekler, istemci ondan sonra pes eder. |
 
 Dönüş `BBAnonym`'dur. İkinci `init` öncekinin yerine geçer.
 
@@ -80,7 +80,7 @@ Dönüş `BBAnonym`'dur. İkinci `init` öncekinin yerine geçer.
 ```java
 @Bean
 BBAnonym bbAnonym(@Value("${bb.anonym.token}") String token) {
-    return new BBAnonym("https://app.bbmask.co", token, Duration.ofSeconds(120));
+    return new BBAnonym("https://app.bbmask.co", token, Duration.ofSeconds(150));
 }
 ```
 
@@ -136,7 +136,6 @@ Tagged tagged = BbMask.anonymize(metin, new Options()
 | 402 | Bakiye yok. |
 | 404 | Harita yok. |
 | 413 | Dosya 20 MB üstü. |
-| 501 | `complete` ailesi. Bu uç henüz açık değil. |
 | 502 | Yanıt JSON değil. |
 | 503 | Servise ulaşılamadı. |
 | 504 | Zaman aşımı doldu. İstek servise ulaşmış olabilir. |
@@ -145,7 +144,7 @@ Tagged tagged = BbMask.anonymize(metin, new Options()
 
 Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
 
-Sınıf düzeyinde `BbMask.anonymizeFile(path)` yolu okur. Bayt sizdeyse `BBAnonym.anonymizeFile(filename, content)` kullanın. Yolu okuyan metot `anonymizePath`'tir.
+`anonymizeFile(path)` yolu okur. Bayt sizdeyse `anonymizeBytes(filename, content)` kullanın; iki ad `BbMask` ve `BBAnonym` üzerinde aynı anlama gelir.
 
 ### Harita serviste
 
@@ -195,10 +194,6 @@ try (MaskSession s = BbMask.session(new Options().persist(false).placeholderStyl
 }
 ```
 
-### `complete`
-
-`complete`, `completeFile` ve `completeDocuments` HTTP çağırmaz. `init` yoksa 401, varsa 501. `BBAnonym` üzerindeki aynı metotlar doğrudan 501 fırlatır.
-
 ## Referans
 
 ```java
@@ -206,15 +201,15 @@ BbMask.init(apiKey)
 BbMask.init(apiKey, baseUrl, timeout)
 anonymize(text, options) -> Tagged
 anonymizeFile(path, options) -> Tagged
+anonymizeBytes(filename, content, options) -> Tagged
 anonymizeDocuments(paths, options) -> Tagged
 restore(docIdOrState, modelText) -> String
 getMap(docId, once) -> Map<String, Object>
 delete(docId) -> boolean
 session(options) -> MaskSession
-complete / completeFile / completeDocuments
 ```
 
-`BBAnonym` kurucu `init` istemez. Dosya burada ikiye ayrılır: `anonymizeFile(filename, content)` bayt alır, `anonymizePath(path)` yolu okur.
+`BBAnonym` kurucu `init` istemez; aynı metotları taşır. Anahtar dışa açık değildir; `toString()` maskeler.
 
 `MaskSession`: `anonymize`, `anonymizeFile`, `anonymizeDocuments`, `restore`, `close`.
 

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using Xunit;
 
@@ -216,7 +217,7 @@ public class ClientTests
                     })));
                 },
             };
-            var tagged = new BBAnonym(server.Url, "dm_test_abc").AnonymizePath(path, new AnonymizeOptions { Persist = false });
+            var tagged = new BBAnonym(server.Url, "dm_test_abc").AnonymizeFile(path, new AnonymizeOptions { Persist = false });
             Assert.Null(tagged.DocId);
             Assert.True(HasField(body, "persist"), body);
             Assert.Contains("false", body);
@@ -319,22 +320,29 @@ public class ClientTests
     }
 
     [Fact]
-    public void CompleteDoesNotCallTheService()
+    public void AnonymizeBytesSendsNameAndContent()
     {
-        var calls = 0;
+        string body = "";
         using var server = new TestServer
         {
-            Handle = (_, _) =>
+            Handle = (incoming, _) =>
             {
-                calls++;
+                body = incoming.Body;
+                Assert.Equal("/v1/anonymize/file", incoming.Target);
                 return Task.FromResult(Outgoing.Json(200, TaggedBody()));
             },
         };
-        var client = new BBAnonym(server.Url, "dm_test_abc");
-        Require(() => client.Complete("x"), 501);
-        Require(() => client.CompleteFile("x"), 501);
-        Require(() => client.CompleteDocuments(new[] { "x" }), 501);
-        Assert.Equal(0, calls);
+        var tagged = new BBAnonym(server.Url, "dm_test_abc").AnonymizeBytes("ek.pdf", Encoding.ASCII.GetBytes("%PDF"));
+        Assert.Equal("doc-1", tagged.DocId);
+        Assert.Contains("ek.pdf", body);
+        Assert.Contains("%PDF", body);
+    }
+
+    [Fact]
+    public void TokenIsNotPrinted()
+    {
+        var client = new BBAnonym("http://127.0.0.1:9", "dm_test_secret_value");
+        Assert.DoesNotContain("dm_test_secret_value", client.ToString());
     }
 
     [Fact]
@@ -432,10 +440,8 @@ public class ClientTests
             Assert.Empty(BbMask.GetMap(tagged.DocId!, false));
             Assert.False(BbMask.Delete(tagged.DocId!));
             BbMask.AnonymizeFile(path);
+            BbMask.AnonymizeBytes("ek.txt", Encoding.UTF8.GetBytes("ek"));
             BbMask.AnonymizeDocuments(new[] { path });
-            Require(() => BbMask.Complete("x"), 501);
-            Require(() => BbMask.CompleteFile(path), 501);
-            Require(() => BbMask.CompleteDocuments(new[] { path }), 501);
             Assert.Equal("Bearer dm_test_abc", auth);
             Assert.Equal(new[]
             {
@@ -443,6 +449,7 @@ public class ClientTests
                 "/v1/restore",
                 "/v1/mappings/doc-1?once=false",
                 "/v1/mappings/doc-1",
+                "/v1/anonymize/file",
                 "/v1/anonymize/file",
                 "/v1/anonymize/documents",
             }, seen);
@@ -458,9 +465,8 @@ public class ClientTests
     {
         BbMask.Reset();
         Require(() => BbMask.Anonymize("Ali"), 401);
-        Require(() => BbMask.Complete("x"), 401);
+        Require(() => BbMask.AnonymizeBytes("a.txt", Encoding.UTF8.GetBytes("a")), 401);
         Require(() => BbMask.Session(), 401);
-        Require(() => new BBAnonym("http://127.0.0.1:9", "dm_test_abc").Complete("x"), 501);
     }
 
     private static bool HasField(string body, string name)

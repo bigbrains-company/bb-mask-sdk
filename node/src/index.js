@@ -1,16 +1,20 @@
 /**
  * bb-mask HTTP istemcisi. Model çağrısı bu pakette yoktur.
  *
- * complete ailesi henüz açık değil; 501 döner.
  * docId serviste kalır. getMap sözlüğü verir. persist false ise state döner.
  * session() docId veya state'i gizler.
+ *
+ * anonymizeFile(path) yolu okur; anonymizeBytes(filename, content) bayt alır.
+ * İki ad hem modülde hem BBAnonym üzerinde aynı anlama gelir.
  */
 
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://app.bbmask.co";
-const NOT_OPEN = "Bu uç henüz açık değil.";
+// Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.
+export const DEFAULT_TIMEOUT = 150;
+export const VERSION = "0.3.0";
 const STYLES = new Set(["angle", "bracket_tr"]);
 
 export class BBError extends Error {
@@ -130,14 +134,15 @@ function toTagged(body, persist) {
 }
 
 export class BBAnonym {
-  constructor(baseUrl, token, timeout = 120) {
-    this.baseUrl = String(baseUrl).replace(/\/+$/, "");
-    this.token = token;
+  constructor(baseUrl, token, timeout = DEFAULT_TIMEOUT) {
+    this.baseUrl = String(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // Anahtar console.log / JSON.stringify çıktısına girmesin.
+    Object.defineProperty(this, "token", { value: token, enumerable: false, writable: false });
     this.timeout = timeout;
   }
 
   headers() {
-    return { Authorization: `Bearer ${this.token}` };
+    return { Authorization: `Bearer ${this.token}`, "User-Agent": `bb-mask-node/${VERSION}` };
   }
 
   async send(method, path, { json, form, query } = {}) {
@@ -177,7 +182,7 @@ export class BBAnonym {
     return toTagged(await readBody(response), persist);
   }
 
-  async anonymizeFile(filename, content, options = {}) {
+  async anonymizeBytes(filename, content, options = {}) {
     const persist = options.persist !== false;
     const wire = wireOptions(options);
     const form = new FormData();
@@ -187,9 +192,9 @@ export class BBAnonym {
     return toTagged(await readBody(response), persist);
   }
 
-  async anonymizePath(path, options = {}) {
+  async anonymizeFile(path, options = {}) {
     const content = await readFile(path);
-    return this.anonymizeFile(basename(path), content, options);
+    return this.anonymizeBytes(basename(path), content, options);
   }
 
   async anonymizeDocuments(paths, options = {}) {
@@ -224,18 +229,6 @@ export class BBAnonym {
     const response = await this.send("DELETE", `/v1/mappings/${quote(docId)}`);
     return Boolean((await readBody(response)).deleted);
   }
-
-  complete() {
-    throw new BBError(501, NOT_OPEN);
-  }
-
-  completeFile() {
-    throw new BBError(501, NOT_OPEN);
-  }
-
-  completeDocuments() {
-    throw new BBError(501, NOT_OPEN);
-  }
 }
 
 export class MaskSession {
@@ -260,7 +253,7 @@ export class MaskSession {
   }
 
   anonymizeFile(path) {
-    return this.client.anonymizePath(path, this.options).then((tagged) => this.remember(tagged));
+    return this.client.anonymizeFile(path, this.options).then((tagged) => this.remember(tagged));
   }
 
   anonymizeDocuments(paths) {
@@ -300,7 +293,7 @@ if (typeof Symbol.asyncDispose === "symbol") {
 
 let current = null;
 
-export function init(apiKey, { baseUrl = DEFAULT_BASE_URL, timeout = 120 } = {}) {
+export function init(apiKey, { baseUrl = DEFAULT_BASE_URL, timeout = DEFAULT_TIMEOUT } = {}) {
   if (!String(apiKey ?? "").trim()) throw new BBError(401, "api_key boş");
   current = new BBAnonym(baseUrl, String(apiKey).trim(), timeout);
   return current;
@@ -316,7 +309,11 @@ export function anonymize(text, options) {
 }
 
 export function anonymizeFile(path, options) {
-  return requireClient().anonymizePath(path, options);
+  return requireClient().anonymizeFile(path, options);
+}
+
+export function anonymizeBytes(filename, content, options) {
+  return requireClient().anonymizeBytes(filename, content, options);
 }
 
 export function anonymizeDocuments(paths, options) {
@@ -337,16 +334,4 @@ export function deleteMapping(docId) {
 
 export function session(options) {
   return new MaskSession(requireClient(), options);
-}
-
-export function complete() {
-  return requireClient().complete();
-}
-
-export function completeFile() {
-  return requireClient().completeFile();
-}
-
-export function completeDocuments() {
-  return requireClient().completeDocuments();
 }

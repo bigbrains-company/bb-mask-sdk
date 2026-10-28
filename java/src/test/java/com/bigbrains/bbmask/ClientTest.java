@@ -166,7 +166,7 @@ class ClientTest {
             extra.put("doc_id", "should-drop");
             sendJson(exchange, 200, taggedBody(extra), "req-1");
         })) {
-            Tagged tagged = new BBAnonym(server.url, "dm_test_abc").anonymizePath(path.toString(), new Options().persist(false));
+            Tagged tagged = new BBAnonym(server.url, "dm_test_abc").anonymizeFile(path.toString(), new Options().persist(false));
             assertNull(tagged.docId());
         } finally {
             Files.deleteIfExists(path);
@@ -266,19 +266,23 @@ class ClientTest {
     }
 
     @Test
-    void completeDoesNotCallTheService() throws Exception {
-        AtomicInteger calls = new AtomicInteger();
+    void anonymizeBytesSendsNameAndContent() throws Exception {
+        List<String> bodies = new ArrayList<>();
         try (Probe server = new Probe(exchange -> {
-            calls.incrementAndGet();
-            exchange.getRequestBody().readAllBytes();
+            bodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.ISO_8859_1));
             sendJson(exchange, 200, taggedBody(null), "req-1");
         })) {
-            BBAnonym client = new BBAnonym(server.url, "dm_test_abc");
-            assertEquals(501, assertThrows(BBError.class, () -> client.complete("x")).getStatusCode());
-            assertEquals(501, assertThrows(BBError.class, () -> client.completeFile("x")).getStatusCode());
-            assertEquals(501, assertThrows(BBError.class, () -> client.completeDocuments(List.of("x"))).getStatusCode());
-            assertEquals(0, calls.get());
+            Tagged tagged = new BBAnonym(server.url, "dm_test_abc").anonymizeBytes("ek.pdf", "%PDF".getBytes(StandardCharsets.US_ASCII));
+            assertEquals("doc-1", tagged.docId());
+            assertTrue(bodies.get(0).contains("filename=\"ek.pdf\""), bodies.get(0));
+            assertTrue(bodies.get(0).contains("%PDF"), bodies.get(0));
         }
+    }
+
+    @Test
+    void tokenIsNotPrinted() {
+        BBAnonym client = new BBAnonym("http://127.0.0.1:9", "dm_test_secret_value");
+        assertFalse(client.toString().contains("dm_test_secret_value"), client.toString());
     }
 
     @Test
@@ -367,16 +371,15 @@ class ClientTest {
             assertTrue(BbMask.getMap(tagged.docId(), false).isEmpty());
             assertFalse(BbMask.delete(tagged.docId()));
             BbMask.anonymizeFile(path.toString());
+            BbMask.anonymizeBytes("ek.txt", "ek".getBytes(StandardCharsets.UTF_8));
             BbMask.anonymizeDocuments(List.of(path.toString()));
-            assertEquals(501, assertThrows(BBError.class, () -> BbMask.complete("x")).getStatusCode());
-            assertEquals(501, assertThrows(BBError.class, () -> BbMask.completeFile(path.toString())).getStatusCode());
-            assertEquals(501, assertThrows(BBError.class, () -> BbMask.completeDocuments(List.of(path.toString()))).getStatusCode());
             assertEquals("Bearer dm_test_abc", auth.get(0));
             assertEquals(List.of(
                     "/v1/anonymize",
                     "/v1/restore",
                     "/v1/mappings/doc-1?once=false",
                     "/v1/mappings/doc-1",
+                    "/v1/anonymize/file",
                     "/v1/anonymize/file",
                     "/v1/anonymize/documents"), seen);
         } finally {
@@ -389,9 +392,8 @@ class ClientTest {
     void moduleCallsBeforeInit() {
         BbMask.reset();
         assertEquals(401, assertThrows(BBError.class, () -> BbMask.anonymize("Ali")).getStatusCode());
-        assertEquals(401, assertThrows(BBError.class, () -> BbMask.complete("x")).getStatusCode());
+        assertEquals(401, assertThrows(BBError.class, () -> BbMask.anonymizeBytes("a.txt", "a".getBytes(StandardCharsets.UTF_8))).getStatusCode());
         assertEquals(401, assertThrows(BBError.class, BbMask::session).getStatusCode());
-        assertEquals(501, assertThrows(BBError.class, () -> new BBAnonym("http://127.0.0.1:9", "dm_test_abc").complete("x")).getStatusCode());
     }
 
     private static Map<String, Object> taggedBody(Map<String, Object> extra) {

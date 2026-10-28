@@ -23,9 +23,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-/** Tek anahtarın istemcisi. init gerekmez. */
+/**
+ * Tek anahtarın istemcisi. init gerekmez.
+ * anonymizeFile(path) yolu okur; anonymizeBytes(filename, content) bayt alır.
+ * Anahtar dışa açık değildir; toString maskeler.
+ */
 public final class BBAnonym {
-    private static final String NOT_OPEN = "Bu uç henüz açık değil.";
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };
@@ -63,6 +66,12 @@ public final class BBAnonym {
         return timeout;
     }
 
+    @Override
+    public String toString() {
+        String masked = token.length() > 12 ? token.substring(0, 8) + "…" + token.substring(token.length() - 4) : "***";
+        return "BBAnonym(baseUrl=" + baseUrl + ", token=" + masked + ", timeout=" + timeout + ")";
+    }
+
     public Tagged anonymize(String text) {
         return anonymize(text, null);
     }
@@ -84,23 +93,25 @@ public final class BBAnonym {
         }
     }
 
-    public Tagged anonymizeFile(String filename, byte[] content) {
-        return anonymizeFile(filename, content, null);
+    /** Bayttan tek dosya gönderir (.txt, .pdf, .docx). */
+    public Tagged anonymizeBytes(String filename, byte[] content) {
+        return anonymizeBytes(filename, content, null);
     }
 
-    public Tagged anonymizeFile(String filename, byte[] content, Options options) {
+    public Tagged anonymizeBytes(String filename, byte[] content, Options options) {
         Options resolved = Options.resolve(options);
         return sendForm("/v1/anonymize/file", resolved, List.of(new FilePart("file", filename, content)));
     }
 
-    public Tagged anonymizePath(String path) {
-        return anonymizePath(path, null);
+    /** Yolu okur ve tek dosya gönderir. */
+    public Tagged anonymizeFile(String path) {
+        return anonymizeFile(path, null);
     }
 
-    public Tagged anonymizePath(String path, Options options) {
+    public Tagged anonymizeFile(String path, Options options) {
         try {
             byte[] content = Files.readAllBytes(Path.of(path));
-            return anonymizeFile(Path.of(path).getFileName().toString(), content, options);
+            return anonymizeBytes(Path.of(path).getFileName().toString(), content, options);
         } catch (BBError error) {
             throw error;
         } catch (IOException error) {
@@ -157,18 +168,6 @@ public final class BBAnonym {
         return Boolean.TRUE.equals(exchange.body.get("deleted"));
     }
 
-    public String complete(String text) {
-        throw new BBError(501, NOT_OPEN, null);
-    }
-
-    public String completeFile(String path) {
-        throw new BBError(501, NOT_OPEN, null);
-    }
-
-    public String completeDocuments(List<String> paths) {
-        throw new BBError(501, NOT_OPEN, null);
-    }
-
     private Tagged sendForm(String path, Options options, List<FilePart> files) {
         String boundary = "bbmask" + UUID.randomUUID().toString().replace("-", "");
         Exchange exchange = send("POST", path, null, multipart(options, files, boundary), "multipart/form-data; boundary=" + boundary);
@@ -187,7 +186,10 @@ public final class BBAnonym {
         String url = baseUrl + path + (query == null || query.isEmpty() ? "" : "?" + query);
         HttpRequest.Builder builder;
         try {
-            builder = HttpRequest.newBuilder(URI.create(url)).timeout(timeout).header("Authorization", "Bearer " + token);
+            builder = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(timeout)
+                    .header("Authorization", "Bearer " + token)
+                    .header("User-Agent", "bb-mask-java/" + BbMask.VERSION);
         } catch (IllegalArgumentException error) {
             throw new BBError(503, unreachable(), null);
         }

@@ -24,7 +24,7 @@ public final class MaskSession implements AutoCloseable {
     }
 
     public Tagged anonymizeFile(String path) {
-        return remember(client.anonymizePath(path, options));
+        return remember(client.anonymizeFile(path, options));
     }
 
     public Tagged anonymizeDocuments(List<String> paths) {

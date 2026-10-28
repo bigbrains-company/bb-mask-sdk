@@ -3,7 +3,7 @@ package bbmask_test
 import (
 	"testing"
 
-	"github.com/bigbrains/bb-mask-sdk/go"
+	"github.com/bigbrains-company/bb-mask-sdk/go"
 )
 
 func TestDefaultImportName(t *testing.T) {

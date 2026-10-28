@@ -1,12 +1,26 @@
 {
   "name": "bb-mask",
-  "version": "0.2.0",
-  "description": "bb-mask istemcisi. anonymize ve restore; model çağrısı yok.",
+  "version": "0.3.0",
+  "description": "Data Mask istemcisi: metin ve dosya anonimleştirme, restore. Model çağrısı yok.",
+  "keywords": ["anonymization", "kvkk", "pii", "data-mask", "bigbrains"],
+  "homepage": "https://app.bbmask.co/#/sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bigbrains-company/bb-mask-sdk.git",
+    "directory": "node"
+  },
+  "bugs": "https://github.com/bigbrains-company/bb-mask-sdk/issues",
+  "author": "BigBrains",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
+  "sideEffects": false,
   "files": [
     "src",
     "README.md",

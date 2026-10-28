@@ -3,6 +3,9 @@
 //
 // Python ve Node paketleriyle aynı uçları kullanır. Hatalar *BBError olarak
 // error döner. Ayrı async fonksiyon yoktur; çağrı bloklar.
+//
+// AnonymizeFile(path) yolu okur; AnonymizeBytes(filename, content) bayt alır.
+// İki ad hem pakette hem BBAnonym üzerinde aynı anlama gelir.
 package bbmask
 
 import (
@@ -26,13 +29,12 @@ import (
 )
 
 const (
-	Version        = "0.2.0"
+	Version        = "0.3.0"
 	DefaultBaseURL = "https://app.bbmask.co"
-	DefaultTimeout = 120 * time.Second
+	// Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.
+	DefaultTimeout = 150 * time.Second
 	StyleAngle     = "angle"
 	StyleBracketTR = "bracket_tr"
-
-	notOpenDetail = "Bu uç henüz açık değil."
 )
 
 // BBError servis veya istemci hatasıdır. Error() ayrıntı metnidir.
@@ -123,11 +125,21 @@ func resolve(opts ...Option) (callOptions, error) {
 }
 
 // BBAnonym tek bir anahtarın istemcisidir. Init gerekmez.
+// Anahtar dışa açık alan değildir; %+v ve günlük çıktısına girmez.
 type BBAnonym struct {
 	BaseURL    string
-	Token      string
 	Timeout    time.Duration
+	token      string
 	httpClient *http.Client
+}
+
+// String anahtarı maskeler; fmt ve günlük çıktısında tam anahtar görünmez.
+func (c BBAnonym) String() string {
+	masked := "***"
+	if len(c.token) > 12 {
+		masked = c.token[:8] + "…" + c.token[len(c.token)-4:]
+	}
+	return fmt.Sprintf("BBAnonym{BaseURL:%s Token:%s Timeout:%s}", c.BaseURL, masked, c.Timeout)
 }
 
 // New istemci kurar. timeout verilmezse veya sıfırsa DefaultTimeout kullanılır.
@@ -142,7 +154,7 @@ func New(baseURL, token string, timeout ...time.Duration) *BBAnonym {
 	}
 	return &BBAnonym{
 		BaseURL: base,
-		Token:   token,
+		token:   token,
 		Timeout: limit,
 		httpClient: &http.Client{
 			Timeout: limit,
@@ -175,16 +187,16 @@ func (c *BBAnonym) anonymize(text string, o callOptions) (*Tagged, error) {
 	return toTagged(body, o.persist), nil
 }
 
-// AnonymizeFile bayttan tek dosya gönderir (.txt, .pdf, .docx).
-func (c *BBAnonym) AnonymizeFile(filename string, content []byte, opts ...Option) (*Tagged, error) {
+// AnonymizeBytes bayttan tek dosya gönderir (.txt, .pdf, .docx).
+func (c *BBAnonym) AnonymizeBytes(filename string, content []byte, opts ...Option) (*Tagged, error) {
 	o, err := resolve(opts...)
 	if err != nil {
 		return nil, err
 	}
-	return c.anonymizeFile(filename, content, o)
+	return c.anonymizeBytes(filename, content, o)
 }
 
-func (c *BBAnonym) anonymizeFile(filename string, content []byte, o callOptions) (*Tagged, error) {
+func (c *BBAnonym) anonymizeBytes(filename string, content []byte, o callOptions) (*Tagged, error) {
 	body, err := c.postForm("/v1/anonymize/file", o, []formFile{{
 		field:   "file",
 		name:    filename,
@@ -196,13 +208,13 @@ func (c *BBAnonym) anonymizeFile(filename string, content []byte, o callOptions)
 	return toTagged(body, o.persist), nil
 }
 
-// AnonymizePath yolu okur ve tek dosya gönderir.
-func (c *BBAnonym) AnonymizePath(path string, opts ...Option) (*Tagged, error) {
+// AnonymizeFile yolu okur ve tek dosya gönderir.
+func (c *BBAnonym) AnonymizeFile(path string, opts ...Option) (*Tagged, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return c.AnonymizeFile(filepath.Base(path), content, opts...)
+	return c.AnonymizeBytes(filepath.Base(path), content, opts...)
 }
 
 // AnonymizeDocuments 1–3 dosyayı tek DocID altında anonimleştirir.
@@ -275,21 +287,6 @@ func (c *BBAnonym) Delete(docID string) (bool, error) {
 	return deleted, nil
 }
 
-// Complete henüz açık değil. HTTP çağrısı yapmaz, 501 döner.
-func (c *BBAnonym) Complete(text string) (string, error) {
-	return "", bbError(501, notOpenDetail)
-}
-
-// CompleteFile henüz açık değil. HTTP çağrısı yapmaz, 501 döner.
-func (c *BBAnonym) CompleteFile(path string) (string, error) {
-	return "", bbError(501, notOpenDetail)
-}
-
-// CompleteDocuments henüz açık değil. HTTP çağrısı yapmaz, 501 döner.
-func (c *BBAnonym) CompleteDocuments(paths []string) (string, error) {
-	return "", bbError(501, notOpenDetail)
-}
-
 type formFile struct {
 	field   string
 	name    string
@@ -343,7 +340,8 @@ func (c *BBAnonym) do(method, path string, query url.Values, body io.Reader, con
 	if err != nil {
 		return nil, bbError(503, fmt.Sprintf("Servise ulaşılamadı (%s)", c.BaseURL))
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("User-Agent", "bb-mask-go/"+Version)
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -526,7 +524,7 @@ func (s *MaskSession) AnonymizeFile(path string) (*Tagged, error) {
 	if err != nil {
 		return nil, err
 	}
-	tagged, err := s.client.anonymizeFile(filepath.Base(path), content, s.opts)
+	tagged, err := s.client.anonymizeBytes(filepath.Base(path), content, s.opts)
 	if err != nil {
 		return nil, err
 	}
@@ -632,13 +630,22 @@ func Anonymize(text string, opts ...Option) (*Tagged, error) {
 	return client.Anonymize(text, opts...)
 }
 
-// AnonymizeFile yolu okur. Bayt sizdeyse BBAnonym.AnonymizeFile kullanın.
+// AnonymizeFile yolu okur.
 func AnonymizeFile(path string, opts ...Option) (*Tagged, error) {
 	client, err := requireClient()
 	if err != nil {
 		return nil, err
 	}
-	return client.AnonymizePath(path, opts...)
+	return client.AnonymizeFile(path, opts...)
+}
+
+// AnonymizeBytes bayttan tek dosya gönderir.
+func AnonymizeBytes(filename string, content []byte, opts ...Option) (*Tagged, error) {
+	client, err := requireClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.AnonymizeBytes(filename, content, opts...)
 }
 
 // AnonymizeDocuments 1–3 dosyayı süreç istemcisiyle gönderir.
@@ -675,31 +682,4 @@ func Delete(docID string) (bool, error) {
 		return false, err
 	}
 	return client.Delete(docID)
-}
-
-// Complete Init yoksa 401, varsa 501 döner. HTTP çağırmaz.
-func Complete(text string) (string, error) {
-	client, err := requireClient()
-	if err != nil {
-		return "", err
-	}
-	return client.Complete(text)
-}
-
-// CompleteFile Init yoksa 401, varsa 501 döner. HTTP çağırmaz.
-func CompleteFile(path string) (string, error) {
-	client, err := requireClient()
-	if err != nil {
-		return "", err
-	}
-	return client.CompleteFile(path)
-}
-
-// CompleteDocuments Init yoksa 401, varsa 501 döner. HTTP çağırmaz.
-func CompleteDocuments(paths []string) (string, error) {
-	client, err := requireClient()
-	if err != nil {
-		return "", err
-	}
-	return client.CompleteDocuments(paths)
 }
