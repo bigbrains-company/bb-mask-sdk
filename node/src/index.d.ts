@@ -1,4 +1,4 @@
-/** bb-mask: Data Mask istemcisi. Model çağrısı bu pakette yoktur. */
+/** bb-mask: Data Mask client. This package never calls a model. */
 
 export const DEFAULT_BASE_URL: string;
 export const DEFAULT_TIMEOUT: number;
@@ -7,18 +7,18 @@ export const VERSION: string;
 export type PlaceholderStyle = "angle" | "bracket_tr";
 
 export interface AnonymizeOptions {
-  /** true → harita serviste, docId dolu. false → state dolu. Varsayılan true. */
+  /** true → mapping on the service, docId set. false → state set. Default true. */
   persist?: boolean;
   /** "angle" → <PERSON_0>. "bracket_tr" → [KİŞİ_1]. */
   placeholderStyle?: PlaceholderStyle;
   placeholder_style?: PlaceholderStyle;
-  /** Şirket türü eki etiketin dışında: [ŞİRKET_1] A.Ş. */
+  /** Company type suffix stays outside the tag: [ŞİRKET_1] A.Ş. */
   keepLegalForm?: boolean;
   keep_legal_form?: boolean;
-  /** Sağlık verisi katmanı. */
+  /** Health data layer. */
   healthData?: boolean;
   health_data?: boolean;
-  /** LLM ikinci geçiş. Ücret yine 1 kredi. */
+  /** Second LLM pass. Still 1 credit. */
   llmReview?: boolean;
   llm_review?: boolean;
 }
@@ -59,19 +59,19 @@ export class Tagged {
 
 export type Content = Buffer | Uint8Array | string;
 
-/** Tek anahtarın istemcisi. init gerekmez. */
+/** Client for one key. No init needed. */
 export class BBAnonym {
   readonly baseUrl: string;
-  /** Sayılmaz (non-enumerable); console.log ve JSON.stringify göstermez. */
+  /** Non-enumerable; console.log and JSON.stringify do not show it. */
   readonly token: string;
   timeout: number;
   constructor(baseUrl: string, token: string, timeout?: number);
   anonymize(text: string, options?: AnonymizeOptions): Promise<Tagged>;
-  /** Yolu okur. */
+  /** Reads a path. */
   anonymizeFile(path: string, options?: AnonymizeOptions): Promise<Tagged>;
-  /** Bayt sizdeyse. */
+  /** When you already hold the bytes. */
   anonymizeBytes(filename: string, content: Content, options?: AnonymizeOptions): Promise<Tagged>;
-  /** 1–3 dosya, tek docId. */
+  /** 1–3 files, one docId. */
   anonymizeDocuments(paths: string[], options?: AnonymizeOptions): Promise<Tagged>;
   restore(docIdOrState: string | State, modelText: string): Promise<string>;
   getMap(docId: string, once?: boolean): Promise<State>;

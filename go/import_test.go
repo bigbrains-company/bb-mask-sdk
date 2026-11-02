@@ -8,6 +8,6 @@ import (
 
 func TestDefaultImportName(t *testing.T) {
 	if bbmask.DefaultBaseURL == "" || bbmask.Version == "" {
-		t.Fatal("paket adı bbmask olmalı")
+		t.Fatal("package name must be bbmask")
 	}
 }

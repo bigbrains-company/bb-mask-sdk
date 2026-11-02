@@ -6,15 +6,15 @@ using System.Text.Json;
 namespace BigBrains;
 
 /// <summary>
-/// Data Mask anonimleştirme servisinin .NET istemcisi. Model çağırmaz.
-/// AnonymizeFile(path) yolu okur; AnonymizeBytes(filename, content) bayt alır.
-/// İki ad hem burada hem <see cref="BBAnonym"/> üzerinde aynı anlama gelir.
+/// .NET client for the Data Mask anonymization service. It never calls a model.
+/// AnonymizeFile(path) reads a path; AnonymizeBytes(filename, content) takes bytes.
+/// Both names mean the same thing here and on <see cref="BBAnonym"/>.
 /// </summary>
 public static class BbMask
 {
-    public const string Version = "0.3.0";
+    public const string Version = "0.3.1";
     public const string DefaultBaseUrl = "https://app.bbmask.co";
-    /// <summary>Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.</summary>
+    /// <summary>The engine waits 120 s; the client gives up after it so the refund/502 decision comes from the server.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(150);
     public const string StyleAngle = "angle";
     public const string StyleBracketTr = "bracket_tr";
@@ -22,12 +22,12 @@ public static class BbMask
     private static readonly object Gate = new();
     private static BBAnonym? _current;
 
-    /// <summary>Süreç istemcisini kurar. İkinci çağrı öncekinin yerine geçer. Boş anahtar 401 fırlatır.</summary>
+    /// <summary>Sets up the process client. A second call replaces the first. An empty key throws 401.</summary>
     public static BBAnonym Init(string apiKey, string? baseUrl = null, TimeSpan? timeout = null)
     {
         var key = (apiKey ?? "").Trim();
         if (key.Length == 0)
-            throw new BBError(401, "api_key boş");
+            throw new BBError(401, "api_key is empty");
         var client = new BBAnonym(baseUrl, key, timeout);
         lock (Gate)
             _current = client;
@@ -45,7 +45,7 @@ public static class BbMask
         lock (Gate)
         {
             if (_current is null)
-                throw new BBError(401, "Init çağrılmadı");
+                throw new BBError(401, "Init was not called");
             return _current;
         }
     }
@@ -56,14 +56,14 @@ public static class BbMask
     public static Tagged Anonymize(string text, AnonymizeOptions? options = null)
         => AnonymizeAsync(text, options).GetAwaiter().GetResult();
 
-    /// <summary>Yolu okur ve tek dosya gönderir.</summary>
+    /// <summary>Reads a path and sends one file.</summary>
     public static Task<Tagged> AnonymizeFileAsync(string path, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
         => Require().AnonymizeFileAsync(path, options, cancellationToken);
 
     public static Tagged AnonymizeFile(string path, AnonymizeOptions? options = null)
         => AnonymizeFileAsync(path, options).GetAwaiter().GetResult();
 
-    /// <summary>Bayt sizdeyse.</summary>
+    /// <summary>When you already hold the bytes.</summary>
     public static Task<Tagged> AnonymizeBytesAsync(string filename, byte[] content, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
         => Require().AnonymizeBytesAsync(filename, content, options, cancellationToken);
 
@@ -98,7 +98,7 @@ public static class BbMask
         => new(Require(), AnonymizeOptions.Resolve(options));
 }
 
-/// <summary>Servis veya istemci hatası. <see cref="Exception.Message"/> ayrıntı metnidir.</summary>
+/// <summary>Service or client error. <see cref="Exception.Message"/> is the detail text.</summary>
 public sealed class BBError : Exception
 {
     public int StatusCode { get; }
@@ -113,7 +113,7 @@ public sealed class BBError : Exception
     }
 }
 
-/// <summary>anonymize çağrısının dönüşü.</summary>
+/// <summary>Result of an anonymize call.</summary>
 public sealed class Tagged
 {
     public string Text { get; init; } = "";
@@ -128,7 +128,7 @@ public sealed class Tagged
     public Dictionary<string, object?>? LlmReview { get; init; }
 }
 
-/// <summary>Anonymize ve Session seçenekleri. persist varsayılanı true, etiket biçimi angle.</summary>
+/// <summary>Options for Anonymize and Session. persist defaults to true, the tag format to angle.</summary>
 public sealed class AnonymizeOptions
 {
     public bool Persist { get; set; } = true;
@@ -150,12 +150,12 @@ public sealed class AnonymizeOptions
     {
         var copy = options?.Copy() ?? new AnonymizeOptions();
         if (copy.PlaceholderStyle != BbMask.StyleAngle && copy.PlaceholderStyle != BbMask.StyleBracketTr)
-            throw new BBError(400, "placeholder_style angle veya bracket_tr olmalı");
+            throw new BBError(400, "placeholder_style must be angle or bracket_tr");
         return copy;
     }
 }
 
-/// <summary>Tek anahtarın istemcisi. Init gerekmez. Anahtar dışa açık değildir; ToString maskeler.</summary>
+/// <summary>Client for one key. No Init needed. The key is not exposed; ToString masks it.</summary>
 public sealed class BBAnonym : IDisposable
 {
     public string BaseUrl { get; }
@@ -203,7 +203,7 @@ public sealed class BBAnonym : IDisposable
     public Tagged Anonymize(string text, AnonymizeOptions? options = null)
         => AnonymizeAsync(text, options).GetAwaiter().GetResult();
 
-    /// <summary>Bayttan tek dosya gönderir (.txt, .pdf, .docx).</summary>
+    /// <summary>Sends one file from bytes (.txt, .pdf, .docx).</summary>
     public async Task<Tagged> AnonymizeBytesAsync(string filename, byte[] content, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
     {
         var resolved = AnonymizeOptions.Resolve(options);
@@ -214,7 +214,7 @@ public sealed class BBAnonym : IDisposable
     public Tagged AnonymizeBytes(string filename, byte[] content, AnonymizeOptions? options = null)
         => AnonymizeBytesAsync(filename, content, options).GetAwaiter().GetResult();
 
-    /// <summary>Yolu okur ve tek dosya gönderir.</summary>
+    /// <summary>Reads a path and sends one file.</summary>
     public async Task<Tagged> AnonymizeFileAsync(string path, AnonymizeOptions? options = null, CancellationToken cancellationToken = default)
     {
         var content = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
@@ -228,7 +228,7 @@ public sealed class BBAnonym : IDisposable
     {
         var resolved = AnonymizeOptions.Resolve(options);
         if (paths is null || paths.Count is < 1 or > 3)
-            throw new BBError(400, "Bir istekte 1–3 dosya");
+            throw new BBError(400, "1–3 files per request");
         var files = new List<(string Field, string Name, byte[] Content)>();
         foreach (var path in paths)
         {
@@ -250,7 +250,7 @@ public sealed class BBAnonym : IDisposable
         else if (docIdOrState is string id)
             payload["doc_id"] = id;
         else
-            throw new BBError(400, "restore doc_id (string) veya state (map) ister");
+            throw new BBError(400, "restore needs a doc_id (string) or a state (map)");
         var body = await SendAsync(HttpMethod.Post, "/v1/restore", JsonContent(payload), null, cancellationToken).ConfigureAwait(false);
         return StringField(body, "text");
     }
@@ -324,10 +324,10 @@ public sealed class BBAnonym : IDisposable
     private string TimeoutDetail()
     {
         var seconds = Timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-        return $"Zaman aşımı ({seconds} sn). Ücret düşmüş olabilir.";
+        return $"Timed out ({seconds} s). The fee may have been charged.";
     }
 
-    private string Unreachable() => $"Servise ulaşılamadı ({BaseUrl})";
+    private string Unreachable() => $"Could not reach the service ({BaseUrl})";
 
     private static StringContent JsonContent(Dictionary<string, object?> payload)
         => new(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -357,7 +357,7 @@ public sealed class BBAnonym : IDisposable
         {
             using var doc = JsonDocument.Parse(raw);
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                throw new BBError(502, "Servis JSON dönmedi", requestId);
+                throw new BBError(502, "The service did not return JSON", requestId);
             var map = ToMap(doc.RootElement);
             map["_request_id"] = requestId;
             return map;
@@ -368,7 +368,7 @@ public sealed class BBAnonym : IDisposable
         }
         catch (JsonException)
         {
-            throw new BBError(502, "Servis JSON dönmedi", requestId);
+            throw new BBError(502, "The service did not return JSON", requestId);
         }
     }
 
@@ -460,7 +460,7 @@ public sealed class BBAnonym : IDisposable
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 }
 
-/// <summary>DocId veya state oturumun içindedir. Dispose çıkışta haritayı siler.</summary>
+/// <summary>The DocId or state stays inside the session. Dispose deletes the mapping on exit.</summary>
 public sealed class MaskSession : IDisposable, IAsyncDisposable
 {
     private readonly BBAnonym _client;
@@ -508,11 +508,11 @@ public sealed class MaskSession : IDisposable, IAsyncDisposable
         if (Persist)
         {
             if (string.IsNullOrEmpty(_docId))
-                throw new BBError(400, "Oturumda anonymize yok");
+                throw new BBError(400, "Nothing anonymized in this session");
             return _client.RestoreAsync(_docId, modelText, cancellationToken);
         }
         if (_state is null || _state.Count == 0)
-            throw new BBError(400, "Oturumda state yok");
+            throw new BBError(400, "No state in this session");
         return _client.RestoreAsync(_state, modelText, cancellationToken);
     }
 

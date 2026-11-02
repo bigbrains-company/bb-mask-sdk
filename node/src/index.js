@@ -1,20 +1,20 @@
 /**
- * bb-mask HTTP istemcisi. Model çağrısı bu pakette yoktur.
+ * bb-mask HTTP client. This package never calls a model.
  *
- * docId serviste kalır. getMap sözlüğü verir. persist false ise state döner.
- * session() docId veya state'i gizler.
+ * docId stays on the service. getMap returns the dictionary. persist false returns state.
+ * session() hides the docId or state.
  *
- * anonymizeFile(path) yolu okur; anonymizeBytes(filename, content) bayt alır.
- * İki ad hem modülde hem BBAnonym üzerinde aynı anlama gelir.
+ * anonymizeFile(path) reads a path; anonymizeBytes(filename, content) takes bytes.
+ * Both names mean the same thing on the module and on BBAnonym.
  */
 
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://app.bbmask.co";
-// Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.
+// The engine waits 120 s; the client gives up after it so the refund/502 decision comes from the server.
 export const DEFAULT_TIMEOUT = 150;
-export const VERSION = "0.3.0";
+export const VERSION = "0.3.1";
 const STYLES = new Set(["angle", "bracket_tr"]);
 
 export class BBError extends Error {
@@ -68,7 +68,7 @@ function pick(options, camel, snake) {
 function wireOptions(options = {}) {
   const style = pick(options, "placeholderStyle", "placeholder_style") ?? "angle";
   if (!STYLES.has(style)) {
-    throw new BBError(400, "placeholder_style angle veya bracket_tr olmalı");
+    throw new BBError(400, "placeholder_style must be angle or bracket_tr");
   }
   return {
     placeholder_style: style,
@@ -110,7 +110,7 @@ async function readBody(response) {
     throw new BBError(response.status, detail, requestId);
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new BBError(502, "Servis JSON dönmedi", requestId);
+    throw new BBError(502, "The service did not return JSON", requestId);
   }
   body._request_id = requestId;
   return body;
@@ -136,7 +136,7 @@ function toTagged(body, persist) {
 export class BBAnonym {
   constructor(baseUrl, token, timeout = DEFAULT_TIMEOUT) {
     this.baseUrl = String(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "");
-    // Anahtar console.log / JSON.stringify çıktısına girmesin.
+    // Keep the key out of console.log / JSON.stringify output.
     Object.defineProperty(this, "token", { value: token, enumerable: false, writable: false });
     this.timeout = timeout;
   }
@@ -167,9 +167,9 @@ export class BBAnonym {
       });
     } catch (error) {
       if (error?.name === "TimeoutError" || error?.name === "AbortError") {
-        throw new BBError(504, `Zaman aşımı (${this.timeout} sn). Ücret düşmüş olabilir.`);
+        throw new BBError(504, `Timed out (${this.timeout} s). The fee may have been charged.`);
       }
-      throw new BBError(503, `Servise ulaşılamadı (${this.baseUrl})`);
+      throw new BBError(503, `Could not reach the service (${this.baseUrl})`);
     }
   }
 
@@ -200,7 +200,7 @@ export class BBAnonym {
   async anonymizeDocuments(paths, options = {}) {
     const persist = options.persist !== false;
     const wire = wireOptions(options);
-    if (paths.length < 1 || paths.length > 3) throw new BBError(400, "Bir istekte 1–3 dosya");
+    if (paths.length < 1 || paths.length > 3) throw new BBError(400, "1–3 files per request");
     const form = new FormData();
     for (const [key, value] of Object.entries(formFields(persist, wire))) form.append(key, value);
     for (const path of paths) {
@@ -262,10 +262,10 @@ export class MaskSession {
 
   restore(modelText) {
     if (this.persist) {
-      if (!this.docId) return Promise.reject(new BBError(400, "Oturumda anonymize yok"));
+      if (!this.docId) return Promise.reject(new BBError(400, "Nothing anonymized in this session"));
       return this.client.restore(this.docId, modelText);
     }
-    if (!this.state) return Promise.reject(new BBError(400, "Oturumda state yok"));
+    if (!this.state) return Promise.reject(new BBError(400, "No state in this session"));
     return this.client.restore(this.state, modelText);
   }
 
@@ -294,13 +294,13 @@ if (typeof Symbol.asyncDispose === "symbol") {
 let current = null;
 
 export function init(apiKey, { baseUrl = DEFAULT_BASE_URL, timeout = DEFAULT_TIMEOUT } = {}) {
-  if (!String(apiKey ?? "").trim()) throw new BBError(401, "api_key boş");
+  if (!String(apiKey ?? "").trim()) throw new BBError(401, "api_key is empty");
   current = new BBAnonym(baseUrl, String(apiKey).trim(), timeout);
   return current;
 }
 
 function requireClient() {
-  if (!current) throw new BBError(401, "init çağrılmadı");
+  if (!current) throw new BBError(401, "init was not called");
   return current;
 }
 

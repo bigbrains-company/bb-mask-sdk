@@ -1,18 +1,20 @@
 # bb-mask-sdk
 
-Data Mask anonimleştirme API’si için istemci SDK’ları. Paketler model çağırmaz; `anonymize` ve `restore` servise gider.
+**English** · [Türkçe](https://github.com/bigbrains-company/bb-mask-sdk/blob/main/README.tr.md)
 
-| Dil | Klasör | Paket | Alt sınır | Durum |
+Client SDKs for the Data Mask anonymization API. The packages never call a model; `anonymize` and `restore` go to the service.
+
+| Language | Folder | Package | Minimum | Status |
 |---|---|---|---|---|
-| Python | [`python/`](python/) | PyPI `bb-mask`, import `bb_mask` | 3.11+ | hazır |
-| Node | [`node/`](node/) | npm `bb-mask` | 18+ | hazır |
-| Go | [`go/`](go/) | modül `github.com/bigbrains-company/bb-mask-sdk/go`, paket `bbmask` | 1.22+ | hazır |
-| C# | [`csharp/`](csharp/) | NuGet `bb-mask`, ad alanı `BigBrains` | .NET 8+ | hazır |
-| Java | [`java/`](java/) | Maven `tr.com.bigbrains:bb-mask`, paket `com.bigbrains.bbmask` | Java 17+ | hazır |
+| Python | [`python/`](python/) | PyPI `bb-mask`, import `bb_mask` | 3.11+ | ready |
+| Node | [`node/`](node/) | npm `bb-mask` | 18+ | ready |
+| Go | [`go/`](go/) | module `github.com/bigbrains-company/bb-mask-sdk/go`, package `bbmask` | 1.22+ | ready |
+| C# | [`csharp/`](csharp/) | NuGet `bb-mask`, namespace `BigBrains` | .NET 8+ | ready |
+| Java | [`java/`](java/) | Maven `tr.com.bigbrains:bb-mask`, package `com.bigbrains.bbmask` | Java 17+ | ready |
 
-Lisans: MIT. Sürüm: 0.3.0 (beş pakette aynı). Test ve derleme `.github/workflows/ci.yml` içinde her dil için ayrı iş olarak çalışır.
+License: MIT. Version: 0.3.1 (same across all five packages). Tests and builds run in `.github/workflows/ci.yml`, one job per language.
 
-Ortak yüzey: `init`/`BBAnonym`, `anonymize`, `anonymize_file(path)`, `anonymize_bytes(filename, content)`, `anonymize_documents`, `restore`, `get_map`, `delete`, `session`. Varsayılan zaman aşımı 150 sn (motor 120 sn bekler). Anahtar `repr`/`toString` çıktısında maskelenir.
+Shared surface: `init`/`BBAnonym`, `anonymize`, `anonymize_file(path)`, `anonymize_bytes(filename, content)`, `anonymize_documents`, `restore`, `get_map`, `delete`, `session`. Default timeout 150 s (the engine waits up to 120 s). The key is masked in `repr`/`toString` output.
 
 ## Python
 
@@ -20,13 +22,13 @@ Ortak yüzey: `init`/`BBAnonym`, `anonymize`, `anonymize_file(path)`, `anonymize
 pip install bb-mask
 ```
 
-Bu depoyu çektikten sonra:
+From a clone of this repository:
 
 ```bash
 pip install -e python
 ```
 
-Kullanım `python/README.md` içindedir.
+Usage is in `python/README.md`.
 
 ## Node
 
@@ -34,42 +36,42 @@ Kullanım `python/README.md` içindedir.
 npm install bb-mask
 ```
 
-Bu depoyu çektikten sonra:
+From a clone of this repository:
 
 ```bash
 npm install ./node
 ```
 
-Kullanım `node/README.md` içindedir. Test: `npm test --prefix node`.
+Usage is in `node/README.md`. Tests: `npm test --prefix node`.
 
 ## Go
 
-Modül yolu `github.com/bigbrains-company/bb-mask-sdk/go`, paket adı `bbmask`. Go 1.22+. Yayın öncesi:
+Module path `github.com/bigbrains-company/bb-mask-sdk/go`, package name `bbmask`. Go 1.22+. Before release:
 
 ```bash
 go test ./...
 ```
 
-Komut `go/` klasöründen çalışır.
+Run it from the `go/` folder.
 
-Kullanım `go/README.md` içindedir. `go.mod` ilk satırı depo adresiyle aynıdır: `github.com/bigbrains-company/bb-mask-sdk/go`; etiket `go/v0.3.0` depo kökünden basılır.
+Usage is in `go/README.md`. The first line of `go.mod` matches the repository path: `github.com/bigbrains-company/bb-mask-sdk/go`; the `go/v0.3.1` tag is pushed from the repository root.
 
 ## C#
 
-.NET 8. NuGet adı `bb-mask`. Yayın öncesi:
+.NET 8. NuGet name `bb-mask`. Before release:
 
 ```bash
 dotnet test BbMask.Tests/BbMask.Tests.csproj
 ```
 
-Komut `csharp/` klasöründen çalışır. Kullanım `csharp/README.md` içindedir.
+Run it from the `csharp/` folder. Usage is in `csharp/README.md`.
 
 ## Java
 
-Java 17. Maven koordinatı `tr.com.bigbrains:bb-mask`. Yayın öncesi:
+Java 17. Maven coordinates `tr.com.bigbrains:bb-mask`. Before release:
 
 ```bash
 mvn test
 ```
 
-Komut `java/` klasöründen çalışır. Kullanım `java/README.md` içindedir. `groupId` Central’da doğrulanmış `tr.com.bigbrains` ad alanıdır. Depo: https://github.com/bigbrains-company/bb-mask-sdk
+Run it from the `java/` folder. Usage is in `java/README.md`. The `groupId` is the verified `tr.com.bigbrains` namespace on Central. Repository: https://github.com/bigbrains-company/bb-mask-sdk

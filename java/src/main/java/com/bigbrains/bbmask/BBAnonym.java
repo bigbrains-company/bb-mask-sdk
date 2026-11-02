@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Tek anahtarın istemcisi. init gerekmez.
- * anonymizeFile(path) yolu okur; anonymizeBytes(filename, content) bayt alır.
- * Anahtar dışa açık değildir; toString maskeler.
+ * Client for one key. No init needed.
+ * anonymizeFile(path) reads a path; anonymizeBytes(filename, content) takes bytes.
+ * The key is not exposed; toString masks it.
  */
 public final class BBAnonym {
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -93,7 +93,7 @@ public final class BBAnonym {
         }
     }
 
-    /** Bayttan tek dosya gönderir (.txt, .pdf, .docx). */
+    /** Sends one file from bytes (.txt, .pdf, .docx). */
     public Tagged anonymizeBytes(String filename, byte[] content) {
         return anonymizeBytes(filename, content, null);
     }
@@ -103,7 +103,7 @@ public final class BBAnonym {
         return sendForm("/v1/anonymize/file", resolved, List.of(new FilePart("file", filename, content)));
     }
 
-    /** Yolu okur ve tek dosya gönderir. */
+    /** Reads a path and sends one file. */
     public Tagged anonymizeFile(String path) {
         return anonymizeFile(path, null);
     }
@@ -126,7 +126,7 @@ public final class BBAnonym {
     public Tagged anonymizeDocuments(List<String> paths, Options options) {
         Options resolved = Options.resolve(options);
         if (paths == null || paths.size() < 1 || paths.size() > 3) {
-            throw new BBError(400, "Bir istekte 1–3 dosya", null);
+            throw new BBError(400, "1–3 files per request", null);
         }
         List<FilePart> files = new ArrayList<>();
         try {
@@ -147,7 +147,7 @@ public final class BBAnonym {
         } else if (docIdOrState instanceof String id) {
             payload.put("doc_id", id);
         } else {
-            throw new BBError(400, "restore doc_id (string) veya state (map) ister", null);
+            throw new BBError(400, "restore needs a doc_id (string) or a state (map)", null);
         }
         Map<String, Object> body = postJson("/v1/restore", payload);
         Object text = body.get("text");
@@ -206,7 +206,7 @@ public final class BBAnonym {
             String requestId = response.headers().firstValue("x-request-id").orElse(null);
             return new Exchange(parse(response.statusCode(), requestId, response.body()), requestId);
         } catch (HttpTimeoutException error) {
-            throw new BBError(504, "Zaman aşımı (" + formatSeconds(timeout) + " sn). Ücret düşmüş olabilir.", null);
+            throw new BBError(504, "Timed out (" + formatSeconds(timeout) + " s). The fee may have been charged.", null);
         } catch (IOException error) {
             throw new BBError(503, unreachable(), null);
         } catch (InterruptedException error) {
@@ -216,7 +216,7 @@ public final class BBAnonym {
     }
 
     private String unreachable() {
-        return "Servise ulaşılamadı (" + baseUrl + ")";
+        return "Could not reach the service (" + baseUrl + ")";
     }
 
     private static String formatSeconds(Duration duration) {
@@ -237,13 +237,13 @@ public final class BBAnonym {
         try {
             Map<String, Object> body = JSON.readValue(raw, MAP);
             if (body == null) {
-                throw new BBError(502, "Servis JSON dönmedi", requestId);
+                throw new BBError(502, "The service did not return JSON", requestId);
             }
             return body;
         } catch (BBError error) {
             throw error;
         } catch (IOException error) {
-            throw new BBError(502, "Servis JSON dönmedi", requestId);
+            throw new BBError(502, "The service did not return JSON", requestId);
         }
     }
 

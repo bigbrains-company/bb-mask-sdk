@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** DocId veya state oturumun içindedir. close çıkışta haritayı siler. */
+/** The docId or state stays inside the session. close deletes the mapping on exit. */
 public final class MaskSession implements AutoCloseable {
     public final boolean persist;
     private final BBAnonym client;
@@ -34,12 +34,12 @@ public final class MaskSession implements AutoCloseable {
     public String restore(String modelText) {
         if (persist) {
             if (docId == null || docId.isEmpty()) {
-                throw new BBError(400, "Oturumda anonymize yok", null);
+                throw new BBError(400, "Nothing anonymized in this session", null);
             }
             return client.restore(docId, modelText);
         }
         if (state == null || state.isEmpty()) {
-            throw new BBError(400, "Oturumda state yok", null);
+            throw new BBError(400, "No state in this session", null);
         }
         return client.restore(state, modelText);
     }
@@ -54,7 +54,7 @@ public final class MaskSession implements AutoCloseable {
             try {
                 client.delete(id);
             } catch (BBError ignored) {
-                // Silme hatası oturumu düşürmez.
+                // A failed delete does not fail the session.
             }
         }
         ids.clear();

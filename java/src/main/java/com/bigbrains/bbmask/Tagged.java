@@ -2,7 +2,7 @@ package com.bigbrains.bbmask;
 
 import java.util.Map;
 
-/** anonymize çağrısının dönüşü. */
+/** Result of an anonymize call. */
 public record Tagged(
         String text,
         String docId,

@@ -235,7 +235,7 @@ class ClientTest {
             BBError error = assertThrows(BBError.class, () -> new BBAnonym(server.url, "dm_test_abc").anonymize("Ali"));
             assertEquals(502, error.getStatusCode());
             assertEquals("req-bad", error.getRequestId());
-            assertEquals("Servis JSON dönmedi", error.getDetail());
+            assertEquals("The service did not return JSON", error.getDetail());
         }
     }
 

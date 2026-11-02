@@ -1,10 +1,12 @@
 # bb-mask
 
-Türkçe hukuki metindeki kişisel veriyi etiketler, model cevabındaki etiketleri geri açar. Paket ince bir HTTP istemcisidir. Model çağırmaz.
+**English** · [Türkçe](https://github.com/bigbrains-company/bb-mask-sdk/blob/main/java/README.tr.md)
 
-Müşteri Data Mask konsolundan `dm_test_` anahtarı alır. Java veya Spring servisi bu paketi kurar ve anahtarı `init`'e verir. LLM satırı müşterinindir; SDK'nın öncesine `anonymize`, sonrasına `restore` konur. Paket Spring'e bağlanmaz.
+Tags personal data in Turkish legal text and puts the real values back into the model’s answer. The package is a thin HTTP client. It never calls a model.
 
-Java 17+. Çalışma bağımlılığı `jackson-databind`. Python, Node, Go ve C# aynı deponun diğer klasörlerindedir.
+You get a `dm_test_` key from the Data Mask console. Your Java or Spring service installs this package and passes the key to `init`. The LLM call is yours; `anonymize` goes before it and `restore` after it. The package does not hook into Spring.
+
+Java 17+. Runtime dependency `jackson-databind`. Python, Node, Go and C# live in the other folders of the same repository.
 
 ```java
 import com.bigbrains.bbmask.BbMask;
@@ -13,12 +15,12 @@ import com.bigbrains.bbmask.Tagged;
 BbMask.init(System.getenv("BB_ANONYM_TOKEN"));
 
 Tagged tagged = BbMask.anonymize("Davacı Hasan Demirkol, TC 62601815964");
-String cevap = kendiLlm(tagged.text());
-String duz = BbMask.restore(tagged.docId(), cevap);
+String reply = myLlm(tagged.text());
+String restored = BbMask.restore(tagged.docId(), reply);
 BbMask.delete(tagged.docId());
 ```
 
-Hatalar `BBError` fırlatır. `getMessage()` ayrıntı metnidir. Çağrı bloklar; Spring WebFlux kullanıyorsanız kendi zamanlayıcınıza alın.
+Errors throw `BBError`; `getMessage()` is the detail text. Calls block; if you use Spring WebFlux, move them to your own scheduler.
 
 | Python | Java |
 |---|---|
@@ -30,52 +32,52 @@ Hatalar `BBError` fırlatır. `getMessage()` ayrıntı metnidir. Çağrı blokla
 | `entities_found` | `entitiesFound()` |
 | `llm_review` | `llmReview()` |
 
-Teldeki alan adları Python ile aynıdır: `doc_id`, `placeholder_style`, `keep_legal_form`.
+Field names on the wire are the same as in Python: `doc_id`, `placeholder_style`, `keep_legal_form`.
 
-## Kurulum
+## Install
 
-Maven koordinatı `tr.com.bigbrains:bb-mask:0.3.0`. Grup kimliği Central Portal’da doğrulanmış `tr.com.bigbrains` ad alanıdır; Java paket adı `com.bigbrains.bbmask` kalır.
+Maven coordinates `tr.com.bigbrains:bb-mask:0.3.1`. The group ID is the verified `tr.com.bigbrains` namespace on Central Portal; the Java package name stays `com.bigbrains.bbmask`.
 
-Paket yayınlanınca:
+Once published:
 
 ```xml
 <dependency>
   <groupId>tr.com.bigbrains</groupId>
   <artifactId>bb-mask</artifactId>
-  <version>0.3.0</version>
+  <version>0.3.1</version>
 </dependency>
 ```
 
-Bu depoyu çektikten sonra test, `java` klasöründen:
+From a clone of this repository, run the tests from the `java` folder:
 
 ```bash
 mvn test
 ```
 
-Anahtarı koda veya repoya yazmayın.
+Never put the key in code or in the repository.
 
 ```bash
 export BB_ANONYM_TOKEN="dm_test_..."
 ```
 
-`init` süreçte bir kez çalışır. Model çağrısı değildir. Sınıf metotları bundan önce çağrılırsa `BBError` 401 fırlatır ve servise gitmez.
+`init` runs once per process. It is not a model call. Static methods called before it throw a 401 `BBError` and never reach the service.
 
 ```java
-BBAnonym istemci = BbMask.init(
+BBAnonym client = BbMask.init(
     System.getenv("BB_ANONYM_TOKEN"),
     "https://app.bbmask.co",
     Duration.ofSeconds(150));
 ```
 
-| Argüman | Anlam |
+| Argument | Meaning |
 |---|---|
-| `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
-| `baseUrl` | Servis adresi. Boşsa `https://app.bbmask.co`. |
-| `timeout` | HTTP zaman aşımı. Boşsa 150 saniye; motor 120 sn bekler, istemci ondan sonra pes eder. |
+| `apiKey` | The `dm_test_` key from the console. Empty or whitespace → 401. The existing client is left unchanged. |
+| `baseUrl` | Service address. Empty → `https://app.bbmask.co`. |
+| `timeout` | HTTP timeout. Empty → 150 seconds; the engine waits up to 120 s and the client gives up after that. |
 
-Dönüş `BBAnonym`'dur. İkinci `init` öncekinin yerine geçer.
+Returns a `BBAnonym`. A second `init` replaces the first.
 
-İkinci bir anahtar gerekiyorsa `init` kullanmadan kurun. Spring'de bu nesne bir `@Bean` olabilir.
+If you need a second key, construct a client without `init`. In Spring it can be a `@Bean`.
 
 ```java
 @Bean
@@ -84,41 +86,41 @@ BBAnonym bbAnonym(@Value("${bb.anonym.token}") String token) {
 }
 ```
 
-## Nesneler
+## Objects
 
 ### `Tagged`
 
-`anonymize`, `anonymizeFile` ve `anonymizeDocuments` bunu döner. Erişim `text()`, `docId()` biçimindedir.
+Returned by `anonymize`, `anonymizeFile` and `anonymizeDocuments`. Fields are accessors: `text()`, `docId()`.
 
-| Alan | Ne zaman dolu |
+| Field | When it is set |
 |---|---|
-| `text` | Her zaman. Kişisel veri yerine etiket vardır. |
-| `docId` | `persist` true (varsayılan). Yoksa `null`. |
-| `state` | `persist` false. Haritanın kendisi. Servise yazılmaz. |
-| `entitiesFound` | Tip başına sayı. Düz isim taşımaz. |
-| `balanceCredits` | Çağrıdan sonra kalan bakiye: `"9.00"`. |
-| `requestId` | Yanıtın `X-Request-Id` değeri. |
-| `placeholderStyle` | `"angle"` veya `"bracket_tr"`. |
-| `keepLegalForm` | Uygulanan değer. |
-| `healthData` | Uygulanan değer. |
-| `llmReview` | `llmReview` true istendiyse durum özeti. Düz isim taşımaz. |
+| `text` | Always. Personal data is replaced by tags. |
+| `docId` | `persist` true (default). Otherwise `null`. |
+| `state` | `persist` false. The mapping itself. Never stored on the service. |
+| `entitiesFound` | Count per type. No plain names. |
+| `balanceCredits` | Balance left after the call: `"9.00"`. |
+| `requestId` | The response’s `X-Request-Id`. |
+| `placeholderStyle` | `"angle"` or `"bracket_tr"`. |
+| `keepLegalForm` | Applied value. |
+| `healthData` | Applied value. |
+| `llmReview` | If `llmReview` true was requested, a status summary. No plain names. |
 
-### Seçenekler
+### Options
 
-`Options`. `persist` varsayılanı `true`, etiket biçimi `"angle"`.
+`Options`. `persist` defaults to `true` and the tag format to `"angle"`.
 
-| Alan | Varsayılan | Etki |
+| Field | Default | Effect |
 |---|---|---|
-| `persist` | `true` | `false` ise harita servise yazılmaz, `docId` null kalır. |
-| `placeholderStyle` | `"angle"` | `"bracket_tr"` → `[KİŞİ_1]`. Başka değer istek gitmeden 400. |
-| `keepLegalForm` | `false` | `true` ise şirket türü eki etiketin dışında kalır. |
-| `healthData` | `false` | `true` ise sağlık verisi de etiketlenir. |
-| `llmReview` | `false` | `true` ise ikinci bir LLM geçişi istenir. |
+| `persist` | `true` | `false` stores nothing on the service and leaves `docId` null. |
+| `placeholderStyle` | `"angle"` | `"bracket_tr"` → `[KİŞİ_1]`. Any other value throws 400 before the request is sent. |
+| `keepLegalForm` | `false` | `true` keeps the company type suffix outside the tag. |
+| `healthData` | `false` | `true` also tags health data. |
+| `llmReview` | `false` | `true` requests a second LLM pass. |
 
-Sabitler: `BbMask.STYLE_ANGLE`, `BbMask.STYLE_BRACKET_TR`.
+Constants: `BbMask.STYLE_ANGLE`, `BbMask.STYLE_BRACKET_TR`.
 
 ```java
-Tagged tagged = BbMask.anonymize(metin, new Options()
+Tagged tagged = BbMask.anonymize(text, new Options()
     .placeholderStyle(BbMask.STYLE_BRACKET_TR)
     .keepLegalForm(true)
     .healthData(true)
@@ -127,74 +129,74 @@ Tagged tagged = BbMask.anonymize(metin, new Options()
 
 ### `BBError`
 
-`getStatusCode()`, `getDetail()`, `getRequestId()`. Ağ hatası da `BBError` olur.
+`getStatusCode()`, `getDetail()`, `getRequestId()`. Network errors are `BBError` too.
 
-| Kod | Anlam |
+| Code | Meaning |
 |---|---|
-| 400 | Geçersiz `placeholder_style`, 1–3 dışı dosya sayısı, oturumda anonymize yok, `restore` ne string ne map aldı. |
-| 401 | `init` çağrılmadı, anahtar boş veya tanınmıyor. |
-| 402 | Bakiye yok. |
-| 404 | Harita yok. |
-| 413 | Dosya 20 MB üstü. |
-| 502 | Yanıt JSON değil. |
-| 503 | Servise ulaşılamadı. |
-| 504 | Zaman aşımı doldu. İstek servise ulaşmış olabilir. |
+| 400 | Invalid `placeholder_style`, file count outside 1–3, nothing anonymized in the session, or `restore` got neither a string nor a map. |
+| 401 | `init` not called, or the key is empty or unknown. |
+| 402 | No balance. |
+| 404 | Mapping not found. |
+| 413 | File larger than 20 MB. |
+| 502 | The response is not JSON. |
+| 503 | Service unreachable. |
+| 504 | Timeout expired. The request may have reached the service. |
 
-## Çağrılar
+## Calls
 
-Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
+File extensions: `.txt`, `.pdf` or `.docx`. Up to 20 MB per file.
 
-`anonymizeFile(path)` yolu okur. Bayt sizdeyse `anonymizeBytes(filename, content)` kullanın; iki ad `BbMask` ve `BBAnonym` üzerinde aynı anlama gelir.
+`anonymizeFile(path)` reads a path. If you already hold the bytes, use `anonymizeBytes(filename, content)`; both names mean the same thing on `BbMask` and `BBAnonym`.
 
-### Harita serviste
+### Mapping on the service
 
 ```java
-Tagged tagged = BbMask.anonymize(metin);
-String duz = BbMask.restore(tagged.docId(), cevap);
+Tagged tagged = BbMask.anonymize(text);
+String restored = BbMask.restore(tagged.docId(), reply);
 BbMask.delete(tagged.docId());
 ```
 
-Tek dosya ve birden çok dosya (üst sınır 3, tek `docId`, tek ücret):
+One file and several files (up to 3, one `docId`, one fee):
 
 ```java
-Tagged tagged = BbMask.anonymizeFile("dilekce.pdf");
-Tagged coklu = BbMask.anonymizeDocuments(List.of("dilekce.pdf", "cevap.docx", "ek.txt"));
+Tagged tagged = BbMask.anonymizeFile("petition.pdf");
+Tagged batch = BbMask.anonymizeDocuments(List.of("petition.pdf", "response.docx", "appendix.txt"));
 ```
 
-### Sözlük
+### Dictionary
 
 ```java
-Map<String, Object> sozluk = BbMask.getMap(tagged.docId(), false);
-Map<String, Object> silinerek = BbMask.getMap(tagged.docId(), true);
+Map<String, Object> mapping = BbMask.getMap(tagged.docId(), false);
+Map<String, Object> readOnce = BbMask.getMap(tagged.docId(), true);
 ```
 
-`true` okuyunca servisteki kopyayı da siler. Sözlük düz isim taşır; modele yalnız `tagged.text()` gider.
+`true` also deletes the service copy after reading. The dictionary carries plain names; only `tagged.text()` goes to the model.
 
-### Harita sizde
+### Mapping on your side
 
 ```java
-Tagged tagged = BbMask.anonymize(metin, new Options().persist(false));
-String duz = BbMask.restore(tagged.state(), cevap);
+Tagged tagged = BbMask.anonymize(text, new Options().persist(false));
+String restored = BbMask.restore(tagged.state(), reply);
 ```
 
-### Oturum
+### Session
 
-`docId` ve `state` oturumun içindedir. `close` çıkışta çalışır: `persist` true ise tutulan her kimlik silinir. Silme `BBError` fırlatırsa yutulur. `try-with-resources` aynı `close` çağrısını yapar.
+The `docId` and `state` stay inside the session. `close` runs on exit: with `persist` true every kept id is deleted. A `BBError` from the delete is swallowed. `try-with-resources` makes the same `close` call.
 
 ```java
 try (MaskSession s = BbMask.session()) {
-    Tagged tagged = s.anonymize(metin);
-    String duz = s.restore(cevap);
+    Tagged tagged = s.anonymize(text);
+    String restored = s.restore(reply);
 }
 ```
 
 ```java
 try (MaskSession s = BbMask.session(new Options().persist(false).placeholderStyle("bracket_tr"))) {
-    Tagged tagged = s.anonymize(metin);
+    Tagged tagged = s.anonymize(text);
 }
 ```
 
-## Referans
+## Reference
 
 ```java
 BbMask.init(apiKey)
@@ -209,13 +211,13 @@ delete(docId) -> boolean
 session(options) -> MaskSession
 ```
 
-`BBAnonym` kurucu `init` istemez; aynı metotları taşır. Anahtar dışa açık değildir; `toString()` maskeler.
+The `BBAnonym` constructor does not need `init`; it has the same methods. The key is not exposed; `toString()` masks it.
 
 `MaskSession`: `anonymize`, `anonymizeFile`, `anonymizeDocuments`, `restore`, `close`.
 
-## Bu pakette olmayanlar
+## Not in this package
 
-- Müşterinin LLM çağrısı.
-- Anahtar üretimi ve bakiye. Onlar panelde.
-- Etiket onarımı. Bozuk etiketi servis düzeltir.
-- Spring Boot starter. İstemciyi kendi `@Bean`'inizde kurarsınız.
+- Your LLM call.
+- Key creation and balance. Those are in the console.
+- Tag repair. The service fixes broken tags.
+- A Spring Boot starter. You create the client in your own `@Bean`.

@@ -5,15 +5,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Data Mask anonimleştirme servisinin Java istemcisi. Model çağırmaz.
- * Spring servisi bu sınıfı kendi bean'inde kurar; paket Spring'e bağlanmaz.
- * anonymizeFile(path) yolu okur; anonymizeBytes(filename, content) bayt alır.
- * İki ad hem burada hem {@link BBAnonym} üzerinde aynı anlama gelir.
+ * Java client for the Data Mask anonymization service. It never calls a model.
+ * A Spring service creates it in its own bean; the package does not depend on Spring.
+ * anonymizeFile(path) reads a path; anonymizeBytes(filename, content) takes bytes.
+ * Both names mean the same thing here and on {@link BBAnonym}.
  */
 public final class BbMask {
-    public static final String VERSION = "0.3.0";
+    public static final String VERSION = "0.3.1";
     public static final String DEFAULT_BASE_URL = "https://app.bbmask.co";
-    /** Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin. */
+    /** The engine waits 120 s; the client gives up after it so the refund/502 decision comes from the server. */
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(150);
     public static final String STYLE_ANGLE = "angle";
     public static final String STYLE_BRACKET_TR = "bracket_tr";
@@ -24,7 +24,7 @@ public final class BbMask {
     private BbMask() {
     }
 
-    /** Süreç istemcisini kurar. İkinci çağrı öncekinin yerine geçer. Boş anahtar 401 fırlatır. */
+    /** Sets up the process client. A second call replaces the first. An empty key throws 401. */
     public static BBAnonym init(String apiKey) {
         return init(apiKey, null, null);
     }
@@ -32,7 +32,7 @@ public final class BbMask {
     public static BBAnonym init(String apiKey, String baseUrl, Duration timeout) {
         String key = apiKey == null ? "" : apiKey.trim();
         if (key.isEmpty()) {
-            throw new BBError(401, "api_key boş", null);
+            throw new BBError(401, "api_key is empty", null);
         }
         BBAnonym client = new BBAnonym(baseUrl, key, timeout);
         synchronized (LOCK) {
@@ -50,7 +50,7 @@ public final class BbMask {
     private static BBAnonym require() {
         synchronized (LOCK) {
             if (current == null) {
-                throw new BBError(401, "init çağrılmadı", null);
+                throw new BBError(401, "init was not called", null);
             }
             return current;
         }
@@ -68,7 +68,7 @@ public final class BbMask {
         return anonymizeFile(path, null);
     }
 
-    /** Yolu okur ve tek dosya gönderir. */
+    /** Reads a path and sends one file. */
     public static Tagged anonymizeFile(String path, Options options) {
         return require().anonymizeFile(path, options);
     }
@@ -77,7 +77,7 @@ public final class BbMask {
         return anonymizeBytes(filename, content, null);
     }
 
-    /** Bayt sizdeyse. */
+    /** When you already hold the bytes. */
     public static Tagged anonymizeBytes(String filename, byte[] content, Options options) {
         return require().anonymizeBytes(filename, content, options);
     }

@@ -45,11 +45,11 @@ func writeJSON(w http.ResponseWriter, status int, body any, requestID string) {
 func requireBB(t *testing.T, err error, status int) *BBError {
 	t.Helper()
 	if err == nil {
-		t.Fatal("hata beklendi")
+		t.Fatal("expected an error")
 	}
 	var bb *BBError
 	if !errors.As(err, &bb) {
-		t.Fatalf("tip %T: %v", err, err)
+		t.Fatalf("type %T: %v", err, err)
 	}
 	if bb.StatusCode != status {
 		t.Fatalf("status %d detail %q", bb.StatusCode, bb.Detail)
@@ -85,7 +85,7 @@ func TestAnonymizeSendsWireBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	if seen.method != http.MethodPost || seen.url != "/v1/anonymize" || seen.auth != "Bearer dm_test_abc" {
-		t.Fatalf("istek %+v", seen)
+		t.Fatalf("request %+v", seen)
 	}
 	want := map[string]any{
 		"text":              "Davacı Hasan Demirkol",
@@ -96,7 +96,7 @@ func TestAnonymizeSendsWireBody(t *testing.T) {
 		"llm_review":        true,
 	}
 	if !reflect.DeepEqual(seen.body, want) {
-		t.Fatalf("gövde %#v", seen.body)
+		t.Fatalf("body %#v", seen.body)
 	}
 	if tagged.Text != "Davacı <PERSON_0>" || tagged.DocID != "doc-1" || tagged.State != nil {
 		t.Fatalf("tagged %+v", tagged)
@@ -105,10 +105,10 @@ func TestAnonymizeSendsWireBody(t *testing.T) {
 		t.Fatalf("entities %#v", tagged.EntitiesFound)
 	}
 	if tagged.BalanceCredits != "9.00" || tagged.RequestID != "req-1" || tagged.PlaceholderStyle != "angle" {
-		t.Fatalf("alanlar %+v", tagged)
+		t.Fatalf("fields %+v", tagged)
 	}
 	if tagged.KeepLegalForm || tagged.HealthData || tagged.LLMReview != nil {
-		t.Fatalf("seçenek alanları %+v", tagged)
+		t.Fatalf("option fields %+v", tagged)
 	}
 }
 
@@ -152,7 +152,7 @@ func TestInvalidPlaceholderStyleFailsBeforeRequest(t *testing.T) {
 		t.Fatalf("detail %q", bb.Detail)
 	}
 	if calls != 0 {
-		t.Fatalf("çağrı %d", calls)
+		t.Fatalf("calls %d", calls)
 	}
 }
 
@@ -235,7 +235,7 @@ func TestFileUploadUsesMultipartFieldNames(t *testing.T) {
 		raw, _ := io.ReadAll(r.Body)
 		body = string(raw)
 		if r.URL.Path != "/v1/anonymize/file" {
-			t.Fatalf("yol %s", r.URL.Path)
+			t.Fatalf("path %s", r.URL.Path)
 		}
 		writeJSON(w, 200, taggedBody(map[string]any{"doc_id": "should-drop"}), "req-1")
 	}))
@@ -259,7 +259,7 @@ func TestFileUploadUsesMultipartFieldNames(t *testing.T) {
 		"Davacı Ali",
 	} {
 		if !strings.Contains(body, part) {
-			t.Fatalf("eksik %q\n%s", part, body)
+			t.Fatalf("missing %q\n%s", part, body)
 		}
 	}
 }
@@ -280,10 +280,10 @@ func TestDocumentsCount(t *testing.T) {
 		raw, _ := io.ReadAll(r.Body)
 		body := string(raw)
 		if r.URL.Path != "/v1/anonymize/documents" {
-			t.Fatalf("yol %s", r.URL.Path)
+			t.Fatalf("path %s", r.URL.Path)
 		}
 		if strings.Count(body, "name=\"files\"") != 2 || !strings.Contains(body, "filename=\"a.txt\"") || !strings.Contains(body, "filename=\"b.txt\"") {
-			t.Fatalf("gövde %s", body)
+			t.Fatalf("body %s", body)
 		}
 		writeJSON(w, 200, taggedBody(nil), "req-1")
 	}))
@@ -305,7 +305,7 @@ func TestDocumentsCount(t *testing.T) {
 		t.Fatalf("detail %q", bb.Detail)
 	}
 	if calls != 1 {
-		t.Fatalf("çağrı %d", calls)
+		t.Fatalf("calls %d", calls)
 	}
 }
 
@@ -332,7 +332,7 @@ func TestNonJSONSuccessIs502(t *testing.T) {
 
 	_, err := New(server.URL, "dm_test_abc").Anonymize("Ali")
 	bb := requireBB(t, err, 502)
-	if bb.RequestID != "req-bad" || bb.Detail != "Servis JSON dönmedi" {
+	if bb.RequestID != "req-bad" || bb.Detail != "The service did not return JSON" {
 		t.Fatalf("%+v", bb)
 	}
 }
@@ -374,14 +374,14 @@ func TestAnonymizeBytesSendsNameAndContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if tagged.DocID != "doc-1" || !strings.Contains(body, `filename="ek.pdf"`) || !strings.Contains(body, "%PDF") {
-		t.Fatalf("gövde %q", body)
+		t.Fatalf("body %q", body)
 	}
 }
 
 func TestTokenIsNotPrinted(t *testing.T) {
 	client := New("http://127.0.0.1:9", "dm_test_secret")
 	if strings.Contains(fmt.Sprintf("%+v", *client), "dm_test_secret") {
-		t.Fatal("anahtar yazdırıldı")
+		t.Fatal("key was printed")
 	}
 }
 
@@ -442,7 +442,7 @@ func TestSessionDeletesIDsAndHidesState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !contains(calls, "DELETE /v1/mappings/"+first.DocID) || !contains(calls, "DELETE /v1/mappings/"+second.DocID) {
-		t.Fatalf("silme %v", calls)
+		t.Fatalf("deletes %v", calls)
 	}
 
 	local, err := Session(WithPersist(false), WithPlaceholderStyle(StyleBracketTR))
@@ -464,7 +464,7 @@ func TestSessionDeletesIDsAndHidesState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(calls) != before {
-		t.Fatalf("persist false silme gitti: %v", calls[before:])
+		t.Fatalf("persist false sent a delete: %v", calls[before:])
 	}
 	_, err = local.Restore("tekrar")
 	requireBB(t, err, 400)
@@ -556,7 +556,7 @@ func TestModuleCallsFollowInit(t *testing.T) {
 		"/v1/anonymize/documents",
 	}
 	if !reflect.DeepEqual(seen, want) {
-		t.Fatalf("yollar %#v", seen)
+		t.Fatalf("paths %#v", seen)
 	}
 }
 

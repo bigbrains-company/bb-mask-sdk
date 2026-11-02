@@ -1,10 +1,12 @@
 # bb-mask
 
-Türkçe hukuki metindeki kişisel veriyi etiketler, model cevabındaki etiketleri geri açar. Paket ince bir HTTP istemcisidir. Model çağırmaz.
+**English** · [Türkçe](https://github.com/bigbrains-company/bb-mask-sdk/blob/main/csharp/README.tr.md)
 
-Müşteri Data Mask konsolundan `dm_test_` anahtarı alır. .NET veya ASP.NET Core servisi bu paketi kurar ve anahtarı `Init`'e verir. LLM satırı müşterinindir; SDK'nın öncesine `Anonymize`, sonrasına `Restore` konur. Paket framework'e bağlanmaz.
+Tags personal data in Turkish legal text and puts the real values back into the model’s answer. The package is a thin HTTP client. It never calls a model.
 
-.NET 8+. Bağımlılık yok; `HttpClient` yeter. Python, Node, Go ve Java aynı deponun diğer klasörlerindedir.
+You get a `dm_test_` key from the Data Mask console. Your .NET or ASP.NET Core service installs this package and passes the key to `Init`. The LLM call is yours; `Anonymize` goes before it and `Restore` after it. The package does not hook into any framework.
+
+.NET 8+. No dependencies; `HttpClient` is enough. Python, Node, Go and Java live in the other folders of the same repository.
 
 ```csharp
 using BigBrains;
@@ -12,12 +14,12 @@ using BigBrains;
 BbMask.Init(Environment.GetEnvironmentVariable("BB_ANONYM_TOKEN"));
 
 var tagged = await BbMask.AnonymizeAsync("Davacı Hasan Demirkol, TC 62601815964");
-var cevap = await kendiLlm(tagged.Text);
-var duz = await BbMask.RestoreAsync(tagged.DocId, cevap);
+var reply = await MyLlm(tagged.Text);
+var restored = await BbMask.RestoreAsync(tagged.DocId, reply);
 await BbMask.DeleteAsync(tagged.DocId);
 ```
 
-Her metodun `Async` eki olmayan senkron kardeşi vardır. ASP.NET Core içinde `Async` kullanın. Hatalar `BBError` fırlatır. `Message` ayrıntı metnidir.
+Every method has a sync counterpart without the `Async` suffix. Use `Async` in ASP.NET Core. Errors throw `BBError`; `Message` is the detail text.
 
 | Python | C# |
 |---|---|
@@ -29,93 +31,93 @@ Her metodun `Async` eki olmayan senkron kardeşi vardır. ASP.NET Core içinde `
 | `entities_found` | `EntitiesFound` |
 | `llm_review` | `LlmReview` |
 
-Teldeki alan adları Python ile aynıdır: `doc_id`, `placeholder_style`, `keep_legal_form`.
+Field names on the wire are the same as in Python: `doc_id`, `placeholder_style`, `keep_legal_form`.
 
-## Kurulum
+## Install
 
-NuGet adı `bb-mask`, ad alanı `BigBrains`. Paket yayınlanınca:
+NuGet name `bb-mask`, namespace `BigBrains`. Once published:
 
 ```bash
 dotnet add package bb-mask
 ```
 
-Bu depoyu çektikten sonra proje dosyasına:
+From a clone of this repository, add this to your project file:
 
 ```xml
-<ProjectReference Include="yol/bb-mask-sdk/csharp/BbMask.csproj" />
+<ProjectReference Include="path/to/bb-mask-sdk/csharp/BbMask.csproj" />
 ```
 
-Test, `csharp` klasöründen:
+Tests, from the `csharp` folder:
 
 ```bash
 dotnet test BbMask.Tests/BbMask.Tests.csproj
 ```
 
-Anahtarı koda veya repoya yazmayın.
+Never put the key in code or in the repository.
 
 ```bash
 export BB_ANONYM_TOKEN="dm_test_..."
 ```
 
-`Init` süreçte bir kez çalışır. Model çağrısı değildir. Modül metotları bundan önce çağrılırsa `BBError` 401 fırlatır ve servise gitmez.
+`Init` runs once per process. It is not a model call. Static methods called before it throw a 401 `BBError` and never reach the service.
 
 ```csharp
-var istemci = BbMask.Init(
+var client = BbMask.Init(
     Environment.GetEnvironmentVariable("BB_ANONYM_TOKEN"),
     "https://app.bbmask.co",
     TimeSpan.FromSeconds(150));
 ```
 
-| Argüman | Anlam |
+| Argument | Meaning |
 |---|---|
-| `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
-| `baseUrl` | Servis adresi. Boşsa `https://app.bbmask.co`. |
-| `timeout` | HTTP zaman aşımı. Boşsa 150 saniye; motor 120 sn bekler, istemci ondan sonra pes eder. |
+| `apiKey` | The `dm_test_` key from the console. Empty or whitespace → 401. The existing client is left unchanged. |
+| `baseUrl` | Service address. Empty → `https://app.bbmask.co`. |
+| `timeout` | HTTP timeout. Empty → 150 seconds; the engine waits up to 120 s and the client gives up after that. |
 
-Dönüş `BBAnonym`'dur. İkinci `Init` öncekinin yerine geçer.
+Returns a `BBAnonym`. A second `Init` replaces the first.
 
-İkinci bir anahtar gerekiyorsa `Init` kullanmadan kurun. ASP.NET Core'da bu nesne singleton olabilir.
+If you need a second key, construct a client without `Init`. In ASP.NET Core it can be a singleton.
 
 ```csharp
-var diger = new BBAnonym("https://app.bbmask.co", token, TimeSpan.FromSeconds(150));
-builder.Services.AddSingleton(diger);
+var other = new BBAnonym("https://app.bbmask.co", token, TimeSpan.FromSeconds(150));
+builder.Services.AddSingleton(other);
 ```
 
-## Nesneler
+## Objects
 
 ### `Tagged`
 
-`Anonymize`, `AnonymizeFile` ve `AnonymizeDocuments` bunu döner.
+Returned by `Anonymize`, `AnonymizeFile` and `AnonymizeDocuments`.
 
-| Alan | Ne zaman dolu |
+| Field | When it is set |
 |---|---|
-| `Text` | Her zaman. Kişisel veri yerine etiket vardır. |
-| `DocId` | `Persist` true (varsayılan). Yoksa `null`. |
-| `State` | `Persist` false. Haritanın kendisi. Servise yazılmaz. |
-| `EntitiesFound` | Tip başına sayı. Düz isim taşımaz. |
-| `BalanceCredits` | Çağrıdan sonra kalan bakiye: `"9.00"`. |
-| `RequestId` | Yanıtın `X-Request-Id` değeri. |
-| `PlaceholderStyle` | `"angle"` veya `"bracket_tr"`. |
-| `KeepLegalForm` | Uygulanan değer. |
-| `HealthData` | Uygulanan değer. |
-| `LlmReview` | `LlmReview` true istendiyse durum özeti. Düz isim taşımaz. |
+| `Text` | Always. Personal data is replaced by tags. |
+| `DocId` | `Persist` true (default). Otherwise `null`. |
+| `State` | `Persist` false. The mapping itself. Never stored on the service. |
+| `EntitiesFound` | Count per type. No plain names. |
+| `BalanceCredits` | Balance left after the call: `"9.00"`. |
+| `RequestId` | The response’s `X-Request-Id`. |
+| `PlaceholderStyle` | `"angle"` or `"bracket_tr"`. |
+| `KeepLegalForm` | Applied value. |
+| `HealthData` | Applied value. |
+| `LlmReview` | If `LlmReview` true was requested, a status summary. No plain names. |
 
-### Seçenekler
+### Options
 
-`AnonymizeOptions`. `Persist` varsayılanı `true`, etiket biçimi `"angle"`.
+`AnonymizeOptions`. `Persist` defaults to `true` and the tag format to `"angle"`.
 
-| Alan | Varsayılan | Etki |
+| Field | Default | Effect |
 |---|---|---|
-| `Persist` | `true` | `false` ise harita servise yazılmaz, `DocId` null kalır. |
-| `PlaceholderStyle` | `"angle"` | `"bracket_tr"` → `[KİŞİ_1]`. Başka değer istek gitmeden 400. |
-| `KeepLegalForm` | `false` | `true` ise şirket türü eki etiketin dışında kalır. |
-| `HealthData` | `false` | `true` ise sağlık verisi de etiketlenir. |
-| `LlmReview` | `false` | `true` ise ikinci bir LLM geçişi istenir. |
+| `Persist` | `true` | `false` stores nothing on the service and leaves `DocId` null. |
+| `PlaceholderStyle` | `"angle"` | `"bracket_tr"` → `[KİŞİ_1]`. Any other value throws 400 before the request is sent. |
+| `KeepLegalForm` | `false` | `true` keeps the company type suffix outside the tag. |
+| `HealthData` | `false` | `true` also tags health data. |
+| `LlmReview` | `false` | `true` requests a second LLM pass. |
 
-Sabitler: `BbMask.StyleAngle`, `BbMask.StyleBracketTr`.
+Constants: `BbMask.StyleAngle`, `BbMask.StyleBracketTr`.
 
 ```csharp
-var tagged = await BbMask.AnonymizeAsync(metin, new AnonymizeOptions
+var tagged = await BbMask.AnonymizeAsync(text, new AnonymizeOptions
 {
     PlaceholderStyle = BbMask.StyleBracketTr,
     KeepLegalForm = true,
@@ -126,69 +128,69 @@ var tagged = await BbMask.AnonymizeAsync(metin, new AnonymizeOptions
 
 ### `BBError`
 
-`StatusCode`, `Detail`, `RequestId`. Ağ hatası da `BBError` olur.
+`StatusCode`, `Detail`, `RequestId`. Network errors are `BBError` too.
 
-| Kod | Anlam |
+| Code | Meaning |
 |---|---|
-| 400 | Geçersiz `placeholder_style`, 1–3 dışı dosya sayısı, oturumda anonymize yok, `Restore` ne string ne sözlük aldı. |
-| 401 | `Init` çağrılmadı, anahtar boş veya tanınmıyor. |
-| 402 | Bakiye yok. |
-| 404 | Harita yok. |
-| 413 | Dosya 20 MB üstü. |
-| 502 | Yanıt JSON değil. |
-| 503 | Servise ulaşılamadı. |
-| 504 | Zaman aşımı doldu. İstek servise ulaşmış olabilir. |
+| 400 | Invalid `placeholder_style`, file count outside 1–3, nothing anonymized in the session, or `Restore` got neither a string nor a dictionary. |
+| 401 | `Init` not called, or the key is empty or unknown. |
+| 402 | No balance. |
+| 404 | Mapping not found. |
+| 413 | File larger than 20 MB. |
+| 502 | The response is not JSON. |
+| 503 | Service unreachable. |
+| 504 | Timeout expired. The request may have reached the service. |
 
-## Çağrılar
+## Calls
 
-Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
+File extensions: `.txt`, `.pdf` or `.docx`. Up to 20 MB per file.
 
-`AnonymizeFile(path)` yolu okur. Bayt sizdeyse `AnonymizeBytes(filename, content)` kullanın; iki ad `BbMask` ve `BBAnonym` üzerinde aynı anlama gelir.
+`AnonymizeFile(path)` reads a path. If you already hold the bytes, use `AnonymizeBytes(filename, content)`; both names mean the same thing on `BbMask` and `BBAnonym`.
 
-### Harita serviste
+### Mapping on the service
 
 ```csharp
-var tagged = await BbMask.AnonymizeAsync(metin);
-var duz = await BbMask.RestoreAsync(tagged.DocId, cevap);
+var tagged = await BbMask.AnonymizeAsync(text);
+var restored = await BbMask.RestoreAsync(tagged.DocId, reply);
 await BbMask.DeleteAsync(tagged.DocId);
 ```
 
-Tek dosya ve birden çok dosya (üst sınır 3, tek `DocId`, tek ücret):
+One file and several files (up to 3, one `DocId`, one fee):
 
 ```csharp
-var tagged = await BbMask.AnonymizeFileAsync("dilekce.pdf");
-var coklu = await BbMask.AnonymizeDocumentsAsync(new[] { "dilekce.pdf", "cevap.docx", "ek.txt" });
+var tagged = await BbMask.AnonymizeFileAsync("petition.pdf");
+var batch = await BbMask.AnonymizeDocumentsAsync(new[] { "petition.pdf", "response.docx", "appendix.txt" });
 ```
 
-### Sözlük
+### Dictionary
 
 ```csharp
-var sozluk = await BbMask.GetMapAsync(tagged.DocId, once: false);
-var silinerek = await BbMask.GetMapAsync(tagged.DocId, once: true);
+var mapping = await BbMask.GetMapAsync(tagged.DocId, once: false);
+var readOnce = await BbMask.GetMapAsync(tagged.DocId, once: true);
 ```
 
-`once: true` okuyunca servisteki kopyayı da siler. Sözlük düz isim taşır; modele yalnız `tagged.Text` gider.
+`once: true` also deletes the service copy after reading. The dictionary carries plain names; only `tagged.Text` goes to the model.
 
-### Harita sizde
+### Mapping on your side
 
 ```csharp
-var tagged = await BbMask.AnonymizeAsync(metin, new AnonymizeOptions { Persist = false });
-var duz = await BbMask.RestoreAsync(tagged.State, cevap);
+var tagged = await BbMask.AnonymizeAsync(text, new AnonymizeOptions { Persist = false });
+var restored = await BbMask.RestoreAsync(tagged.State, reply);
 ```
 
-### Oturum
+### Session
 
-`DocId` ve `State` oturumun içindedir. `Dispose` çıkışta çalışır: `Persist` true ise tutulan her kimlik silinir. Silme `BBError` fırlatırsa yutulur.
+The `DocId` and `State` stay inside the session. `Dispose` runs on exit: with `Persist` true every kept id is deleted. A `BBError` from the delete is swallowed.
 
 ```csharp
 await using var s = BbMask.Session();
-var tagged = await s.AnonymizeAsync(metin);
-var duz = await s.RestoreAsync(cevap);
+var tagged = await s.AnonymizeAsync(text);
+var restored = await s.RestoreAsync(reply);
 ```
 
-`BBAnonym` eşzamanlı çağrılabilir. Aynı `MaskSession` sırayla kullanılır.
+`BBAnonym` is safe for concurrent use. Use a single `MaskSession` sequentially.
 
-## Referans
+## Reference
 
 ```csharp
 Init(apiKey, baseUrl = null, timeout = null) -> BBAnonym
@@ -202,13 +204,13 @@ Delete / DeleteAsync(docId) -> bool
 Session(options) -> MaskSession
 ```
 
-Async metotlar sonda `CancellationToken` alır. `BBAnonym` kurucu `Init` istemez; aynı metotları taşır. Anahtar dışa açık özellik değildir; `ToString()` maskeler.
+Async methods take a `CancellationToken` last. The `BBAnonym` constructor does not need `Init`; it has the same methods. The key is not a public property; `ToString()` masks it.
 
-`MaskSession`: `Anonymize`, `AnonymizeFile`, `AnonymizeDocuments`, `Restore`, `Close`. `Dispose` ve `DisposeAsync` `Close` çağırır.
+`MaskSession`: `Anonymize`, `AnonymizeFile`, `AnonymizeDocuments`, `Restore`, `Close`. `Dispose` and `DisposeAsync` call `Close`.
 
-## Bu pakette olmayanlar
+## Not in this package
 
-- Müşterinin LLM çağrısı.
-- Anahtar üretimi ve bakiye. Onlar panelde.
-- Etiket onarımı. Bozuk etiketi servis düzeltir.
-- ASP.NET controller veya DI eklentisi. İstemciyi siz kaydedersiniz.
+- Your LLM call.
+- Key creation and balance. Those are in the console.
+- Tag repair. The service fixes broken tags.
+- An ASP.NET controller or DI extension. You register the client yourself.

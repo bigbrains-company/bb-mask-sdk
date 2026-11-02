@@ -1,11 +1,11 @@
-// Package bbmask Data Mask anonimleştirme servisinin Go istemcisidir.
-// Model çağırmaz. Init bir kez çalışır; Anonymize ve Restore servise gider.
+// Package bbmask is the Go client for the Data Mask anonymization service.
+// It never calls a model. Init runs once; Anonymize and Restore go to the service.
 //
-// Python ve Node paketleriyle aynı uçları kullanır. Hatalar *BBError olarak
-// error döner. Ayrı async fonksiyon yoktur; çağrı bloklar.
+// It uses the same endpoints as the Python and Node packages. Errors are
+// returned as *BBError. There are no separate async functions; calls block.
 //
-// AnonymizeFile(path) yolu okur; AnonymizeBytes(filename, content) bayt alır.
-// İki ad hem pakette hem BBAnonym üzerinde aynı anlama gelir.
+// AnonymizeFile(path) reads a path; AnonymizeBytes(filename, content) takes bytes.
+// Both names mean the same thing on the package and on BBAnonym.
 package bbmask
 
 import (
@@ -29,15 +29,15 @@ import (
 )
 
 const (
-	Version        = "0.3.0"
+	Version        = "0.3.1"
 	DefaultBaseURL = "https://app.bbmask.co"
-	// Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.
+	// The engine waits 120 s; the client gives up after it so the refund/502 decision comes from the server.
 	DefaultTimeout = 150 * time.Second
 	StyleAngle     = "angle"
 	StyleBracketTR = "bracket_tr"
 )
 
-// BBError servis veya istemci hatasıdır. Error() ayrıntı metnidir.
+// BBError is a service or client error. Error() is the detail text.
 type BBError struct {
 	StatusCode int
 	Detail     string
@@ -55,7 +55,7 @@ func bbError(status int, detail string) *BBError {
 	return &BBError{StatusCode: status, Detail: detail}
 }
 
-// Tagged anonymize çağrısının dönüşüdür.
+// Tagged is the result of an anonymize call.
 type Tagged struct {
 	Text             string
 	DocID            string
@@ -69,13 +69,13 @@ type Tagged struct {
 	LLMReview        map[string]any
 }
 
-// Config Init için adres ve zaman aşımıdır. Boş alanlar varsayılanı korur.
+// Config holds the address and timeout for Init. Empty fields keep the defaults.
 type Config struct {
 	BaseURL string
 	Timeout time.Duration
 }
 
-// Option Anonymize, dosya çağrıları ve Session için isimli seçenektir.
+// Option is a named option for Anonymize, the file calls and Session.
 type Option func(*callOptions)
 
 type callOptions struct {
@@ -86,27 +86,27 @@ type callOptions struct {
 	llmReview        bool
 }
 
-// WithPersist haritanın serviste tutulup tutulmayacağını seçer. Varsayılan true.
+// WithPersist chooses whether the mapping is kept on the service. Default true.
 func WithPersist(persist bool) Option {
 	return func(o *callOptions) { o.persist = persist }
 }
 
-// WithPlaceholderStyle "angle" veya "bracket_tr" kabul eder.
+// WithPlaceholderStyle accepts "angle" or "bracket_tr".
 func WithPlaceholderStyle(style string) Option {
 	return func(o *callOptions) { o.placeholderStyle = style }
 }
 
-// WithKeepLegalForm şirket türü ekini etiketin dışında bırakır.
+// WithKeepLegalForm keeps the company type suffix outside the tag.
 func WithKeepLegalForm(keep bool) Option {
 	return func(o *callOptions) { o.keepLegalForm = keep }
 }
 
-// WithHealthData tanı, ilaç, tahlil ve kan grubunu da etiketler.
+// WithHealthData also tags diagnoses, drugs, lab results and blood type.
 func WithHealthData(health bool) Option {
 	return func(o *callOptions) { o.healthData = health }
 }
 
-// WithLLMReview kuralların kaçırdığı varlıklar için ikinci bir geçiş ister.
+// WithLLMReview requests a second pass for entities the rules missed.
 func WithLLMReview(review bool) Option {
 	return func(o *callOptions) { o.llmReview = review }
 }
@@ -119,13 +119,13 @@ func resolve(opts ...Option) (callOptions, error) {
 		}
 	}
 	if o.placeholderStyle != StyleAngle && o.placeholderStyle != StyleBracketTR {
-		return callOptions{}, bbError(400, "placeholder_style angle veya bracket_tr olmalı")
+		return callOptions{}, bbError(400, "placeholder_style must be angle or bracket_tr")
 	}
 	return o, nil
 }
 
-// BBAnonym tek bir anahtarın istemcisidir. Init gerekmez.
-// Anahtar dışa açık alan değildir; %+v ve günlük çıktısına girmez.
+// BBAnonym is the client for a single key. No Init needed.
+// The key is not an exported field; it stays out of %+v and log output.
 type BBAnonym struct {
 	BaseURL    string
 	Timeout    time.Duration
@@ -133,7 +133,7 @@ type BBAnonym struct {
 	httpClient *http.Client
 }
 
-// String anahtarı maskeler; fmt ve günlük çıktısında tam anahtar görünmez.
+// String masks the key; the full key never shows in fmt or log output.
 func (c BBAnonym) String() string {
 	masked := "***"
 	if len(c.token) > 12 {
@@ -142,7 +142,7 @@ func (c BBAnonym) String() string {
 	return fmt.Sprintf("BBAnonym{BaseURL:%s Token:%s Timeout:%s}", c.BaseURL, masked, c.Timeout)
 }
 
-// New istemci kurar. timeout verilmezse veya sıfırsa DefaultTimeout kullanılır.
+// New creates a client. If timeout is missing or zero, DefaultTimeout is used.
 func New(baseURL, token string, timeout ...time.Duration) *BBAnonym {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
@@ -162,8 +162,8 @@ func New(baseURL, token string, timeout ...time.Duration) *BBAnonym {
 	}
 }
 
-// Anonymize metni anonimleştirir. Varsayılan persist true: DocID dolar.
-// WithPersist(false) haritayı yazmaz, State dolar, DocID boş kalır.
+// Anonymize anonymizes text. persist defaults to true: DocID is set.
+// WithPersist(false) stores no mapping: State is set and DocID stays empty.
 func (c *BBAnonym) Anonymize(text string, opts ...Option) (*Tagged, error) {
 	o, err := resolve(opts...)
 	if err != nil {
@@ -187,7 +187,7 @@ func (c *BBAnonym) anonymize(text string, o callOptions) (*Tagged, error) {
 	return toTagged(body, o.persist), nil
 }
 
-// AnonymizeBytes bayttan tek dosya gönderir (.txt, .pdf, .docx).
+// AnonymizeBytes sends one file from bytes (.txt, .pdf, .docx).
 func (c *BBAnonym) AnonymizeBytes(filename string, content []byte, opts ...Option) (*Tagged, error) {
 	o, err := resolve(opts...)
 	if err != nil {
@@ -208,7 +208,7 @@ func (c *BBAnonym) anonymizeBytes(filename string, content []byte, o callOptions
 	return toTagged(body, o.persist), nil
 }
 
-// AnonymizeFile yolu okur ve tek dosya gönderir.
+// AnonymizeFile reads a path and sends one file.
 func (c *BBAnonym) AnonymizeFile(path string, opts ...Option) (*Tagged, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -217,7 +217,7 @@ func (c *BBAnonym) AnonymizeFile(path string, opts ...Option) (*Tagged, error) {
 	return c.AnonymizeBytes(filepath.Base(path), content, opts...)
 }
 
-// AnonymizeDocuments 1–3 dosyayı tek DocID altında anonimleştirir.
+// AnonymizeDocuments anonymizes 1–3 files under one DocID.
 func (c *BBAnonym) AnonymizeDocuments(paths []string, opts ...Option) (*Tagged, error) {
 	o, err := resolve(opts...)
 	if err != nil {
@@ -228,7 +228,7 @@ func (c *BBAnonym) AnonymizeDocuments(paths []string, opts ...Option) (*Tagged, 
 
 func (c *BBAnonym) anonymizeDocuments(paths []string, o callOptions) (*Tagged, error) {
 	if len(paths) < 1 || len(paths) > 3 {
-		return nil, bbError(400, "Bir istekte 1–3 dosya")
+		return nil, bbError(400, "1–3 files per request")
 	}
 	files := make([]formFile, 0, len(paths))
 	for _, path := range paths {
@@ -245,7 +245,7 @@ func (c *BBAnonym) anonymizeDocuments(paths []string, o callOptions) (*Tagged, e
 	return toTagged(body, o.persist), nil
 }
 
-// Restore doc_id (string) veya state (map) ile model metnini açar.
+// Restore puts the real values back into the model text using a doc_id (string) or a state (map).
 func (c *BBAnonym) Restore(docIDOrState any, modelText string) (string, error) {
 	payload := map[string]any{"text": modelText}
 	if state, ok := stateOf(docIDOrState); ok {
@@ -253,7 +253,7 @@ func (c *BBAnonym) Restore(docIDOrState any, modelText string) (string, error) {
 	} else if id, ok := docIDOrState.(string); ok {
 		payload["doc_id"] = id
 	} else {
-		return "", bbError(400, "restore doc_id (string) veya state (map) ister")
+		return "", bbError(400, "restore needs a doc_id (string) or a state (map)")
 	}
 	body, err := c.postJSON("/v1/restore", payload)
 	if err != nil {
@@ -262,7 +262,7 @@ func (c *BBAnonym) Restore(docIDOrState any, modelText string) (string, error) {
 	return stringField(body, "text"), nil
 }
 
-// GetMap servisteki sözlüğü döner. once true ise okuyunca kopyayı siler.
+// GetMap returns the dictionary from the service. With once true the service copy is deleted after reading.
 func (c *BBAnonym) GetMap(docID string, once bool) (map[string]any, error) {
 	query := url.Values{}
 	query.Set("once", strconv.FormatBool(once))
@@ -277,7 +277,7 @@ func (c *BBAnonym) GetMap(docID string, once bool) (map[string]any, error) {
 	return state, nil
 }
 
-// Delete servisteki haritayı siler. Servis deleted derse true döner.
+// Delete removes the mapping from the service. Returns true if the service reports deleted.
 func (c *BBAnonym) Delete(docID string) (bool, error) {
 	body, err := c.do(http.MethodDelete, "/v1/mappings/"+url.PathEscape(docID), nil, nil, "")
 	if err != nil {
@@ -338,7 +338,7 @@ func (c *BBAnonym) do(method, path string, query url.Values, body io.Reader, con
 	}
 	req, err := http.NewRequest(method, endpoint, body)
 	if err != nil {
-		return nil, bbError(503, fmt.Sprintf("Servise ulaşılamadı (%s)", c.BaseURL))
+		return nil, bbError(503, fmt.Sprintf("Could not reach the service (%s)", c.BaseURL))
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("User-Agent", "bb-mask-go/"+Version)
@@ -359,9 +359,9 @@ func (c *BBAnonym) do(method, path string, query url.Values, body io.Reader, con
 
 func (c *BBAnonym) transportError(err error) *BBError {
 	if isTimeout(err) {
-		return bbError(504, fmt.Sprintf("Zaman aşımı (%s sn). Ücret düşmüş olabilir.", formatSeconds(c.Timeout)))
+		return bbError(504, fmt.Sprintf("Timed out (%s s). The fee may have been charged.", formatSeconds(c.Timeout)))
 	}
-	return bbError(503, fmt.Sprintf("Servise ulaşılamadı (%s)", c.BaseURL))
+	return bbError(503, fmt.Sprintf("Could not reach the service (%s)", c.BaseURL))
 }
 
 func isTimeout(err error) bool {
@@ -388,7 +388,7 @@ func parseBody(status int, requestID string, raw []byte) (map[string]any, error)
 	}
 	var body map[string]any
 	if err := json.Unmarshal(raw, &body); err != nil || body == nil {
-		return nil, &BBError{StatusCode: 502, Detail: "Servis JSON dönmedi", RequestID: requestID}
+		return nil, &BBError{StatusCode: 502, Detail: "The service did not return JSON", RequestID: requestID}
 	}
 	body["_request_id"] = requestID
 	return body, nil
@@ -485,7 +485,7 @@ func stateOf(value any) (any, bool) {
 	return value, true
 }
 
-// MaskSession DocID veya state'i içinde tutar. Close çıkışta haritayı siler.
+// MaskSession keeps the DocID or state inside. Close deletes the mapping on exit.
 type MaskSession struct {
 	Persist bool
 
@@ -496,7 +496,7 @@ type MaskSession struct {
 	state  map[string]any
 }
 
-// Session süreç istemcisinden oturum açar. Seçenekler her anonymize çağrısına gider.
+// Session opens a session on the process client. Options apply to every anonymize call.
 func Session(opts ...Option) (*MaskSession, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -509,7 +509,7 @@ func Session(opts ...Option) (*MaskSession, error) {
 	return &MaskSession{Persist: resolved.persist, client: client, opts: resolved}, nil
 }
 
-// Anonymize oturumun persist ve seçenekleriyle metni anonimleştirir.
+// Anonymize anonymizes text with the session's persist and options.
 func (s *MaskSession) Anonymize(text string) (*Tagged, error) {
 	tagged, err := s.client.anonymize(text, s.opts)
 	if err != nil {
@@ -518,7 +518,7 @@ func (s *MaskSession) Anonymize(text string) (*Tagged, error) {
 	return s.remember(tagged), nil
 }
 
-// AnonymizeFile yolu okur.
+// AnonymizeFile reads a path.
 func (s *MaskSession) AnonymizeFile(path string) (*Tagged, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -531,7 +531,7 @@ func (s *MaskSession) AnonymizeFile(path string) (*Tagged, error) {
 	return s.remember(tagged), nil
 }
 
-// AnonymizeDocuments 1–3 dosyayı oturum seçenekleriyle gönderir.
+// AnonymizeDocuments sends 1–3 files with the session options.
 func (s *MaskSession) AnonymizeDocuments(paths []string) (*Tagged, error) {
 	tagged, err := s.client.anonymizeDocuments(paths, s.opts)
 	if err != nil {
@@ -540,23 +540,23 @@ func (s *MaskSession) AnonymizeDocuments(paths []string) (*Tagged, error) {
 	return s.remember(tagged), nil
 }
 
-// Restore yalnız model metnini alır. Anonymize yoksa 400 döner.
+// Restore takes only the model text. Returns 400 if nothing was anonymized.
 func (s *MaskSession) Restore(modelText string) (string, error) {
 	if s.Persist {
 		if s.docID == "" {
-			return "", bbError(400, "Oturumda anonymize yok")
+			return "", bbError(400, "Nothing anonymized in this session")
 		}
 		return s.client.Restore(s.docID, modelText)
 	}
 	if len(s.state) == 0 {
-		return "", bbError(400, "Oturumda state yok")
+		return "", bbError(400, "No state in this session")
 	}
 	return s.client.Restore(s.state, modelText)
 }
 
-// Close persist true ise tutulan her DocID için Delete çağırır.
-// persist false ise state düşer, servise silme gitmez.
-// BBError yutulur; ağ hataları da BBError olduğundan çıkış genelde nil döner.
+// Close calls Delete for every kept DocID when persist is true.
+// When persist is false the state is dropped and no delete is sent.
+// A BBError is swallowed; network errors are BBError too, so Close usually returns nil.
 func (s *MaskSession) Close() error {
 	if !s.Persist {
 		s.state = nil
@@ -588,12 +588,12 @@ var (
 	current *BBAnonym
 )
 
-// Init süreç istemcisini kurar. İkinci çağrı öncekinin yerine geçer.
-// Boş anahtar 401 döner ve kurulu istemciyi değiştirmez.
+// Init sets up the process client. A second call replaces the first.
+// An empty key returns 401 and leaves the existing client unchanged.
 func Init(apiKey string, cfg ...Config) (*BBAnonym, error) {
 	key := strings.TrimSpace(apiKey)
 	if key == "" {
-		return nil, bbError(401, "api_key boş")
+		return nil, bbError(401, "api_key is empty")
 	}
 	baseURL := DefaultBaseURL
 	timeout := DefaultTimeout
@@ -616,12 +616,12 @@ func requireClient() (*BBAnonym, error) {
 	mu.RLock()
 	defer mu.RUnlock()
 	if current == nil {
-		return nil, bbError(401, "Init çağrılmadı")
+		return nil, bbError(401, "Init was not called")
 	}
 	return current, nil
 }
 
-// Anonymize süreç istemcisinde metni anonimleştirir. Init gerekir.
+// Anonymize anonymizes text with the process client. Requires Init.
 func Anonymize(text string, opts ...Option) (*Tagged, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -630,7 +630,7 @@ func Anonymize(text string, opts ...Option) (*Tagged, error) {
 	return client.Anonymize(text, opts...)
 }
 
-// AnonymizeFile yolu okur.
+// AnonymizeFile reads a path.
 func AnonymizeFile(path string, opts ...Option) (*Tagged, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -639,7 +639,7 @@ func AnonymizeFile(path string, opts ...Option) (*Tagged, error) {
 	return client.AnonymizeFile(path, opts...)
 }
 
-// AnonymizeBytes bayttan tek dosya gönderir.
+// AnonymizeBytes sends one file from bytes.
 func AnonymizeBytes(filename string, content []byte, opts ...Option) (*Tagged, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -648,7 +648,7 @@ func AnonymizeBytes(filename string, content []byte, opts ...Option) (*Tagged, e
 	return client.AnonymizeBytes(filename, content, opts...)
 }
 
-// AnonymizeDocuments 1–3 dosyayı süreç istemcisiyle gönderir.
+// AnonymizeDocuments sends 1–3 files with the process client.
 func AnonymizeDocuments(paths []string, opts ...Option) (*Tagged, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -657,7 +657,7 @@ func AnonymizeDocuments(paths []string, opts ...Option) (*Tagged, error) {
 	return client.AnonymizeDocuments(paths, opts...)
 }
 
-// Restore süreç istemcisinde etiketi açar.
+// Restore puts the real values back with the process client.
 func Restore(docIDOrState any, modelText string) (string, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -666,7 +666,7 @@ func Restore(docIDOrState any, modelText string) (string, error) {
 	return client.Restore(docIDOrState, modelText)
 }
 
-// GetMap süreç istemcisinde sözlüğü okur.
+// GetMap reads the dictionary with the process client.
 func GetMap(docID string, once bool) (map[string]any, error) {
 	client, err := requireClient()
 	if err != nil {
@@ -675,7 +675,7 @@ func GetMap(docID string, once bool) (map[string]any, error) {
 	return client.GetMap(docID, once)
 }
 
-// Delete süreç istemcisinde haritayı siler.
+// Delete removes the mapping with the process client.
 func Delete(docID string) (bool, error) {
 	client, err := requireClient()
 	if err != nil {

@@ -1,4 +1,4 @@
-"""Data Mask istemcisi. Müşteri LLM çağrısı bu pakette yoktur."""
+"""Data Mask client. The customer's LLM call is not in this package."""
 
 from bb_mask.client import (
     DEFAULT_BASE_URL,

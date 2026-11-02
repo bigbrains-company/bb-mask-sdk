@@ -1,10 +1,10 @@
-"""bb_mask HTTP istemcisi. Model çağrısı bu modülde yoktur.
+"""bb_mask HTTP client. This module never calls a model.
 
-doc_id serviste kalır. get_map sözlüğü verir. persist=False state döner.
-session() doc_id veya state'i gizler.
+doc_id stays on the service. get_map returns the dictionary. persist=False returns state.
+session() hides the doc_id or state.
 
-anonymize_file(path) yolu okur; anonymize_bytes(filename, content) bayt alır.
-İki ad hem modülde hem BBAnonym üzerinde aynı anlama gelir.
+anonymize_file(path) reads a path; anonymize_bytes(filename, content) takes bytes.
+Both names mean the same thing on the module and on BBAnonym.
 """
 
 from __future__ import annotations
@@ -19,11 +19,11 @@ from urllib.parse import quote
 
 import httpx
 
-# Müşteri kodu sunucudaki Data Mask konteynerine gider (8081).
+# Customer code talks to the Data Mask container on the server (8081).
 DEFAULT_BASE_URL = "https://app.bbmask.co"
-# Motor 120 sn bekler; istemci motordan sonra pes etsin ki iade/502 kararı sunucudan gelsin.
+# The engine waits 120 s; the client gives up after it so the refund/502 decision comes from the server.
 DEFAULT_TIMEOUT = 150.0
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 PlaceholderStyle = Literal["angle", "bracket_tr"]
 PLACEHOLDER_STYLES = ("angle", "bracket_tr")
@@ -58,7 +58,7 @@ def _options(
     llm_review: bool,
 ) -> dict:
     if placeholder_style not in PLACEHOLDER_STYLES:
-        raise BBError(400, "placeholder_style angle veya bracket_tr olmalı")
+        raise BBError(400, "placeholder_style must be angle or bracket_tr")
     return {
         "placeholder_style": placeholder_style,
         "keep_legal_form": bool(keep_legal_form),
@@ -79,7 +79,7 @@ def _mask(token: str) -> str:
 
 
 class BBAnonym:
-    """Tek anahtarın istemcisi. Bağlantı havuzu nesneyle yaşar; with ile ya da close() ile kapanır."""
+    """Client for one key. The connection pool lives with the object; close it with `with` or close()."""
 
     def __init__(self, base_url: str, token: str, timeout: float = DEFAULT_TIMEOUT):
         self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
@@ -117,9 +117,9 @@ class BBAnonym:
         try:
             return self._client().request(method, path, **kwargs)
         except httpx.TimeoutException as exc:
-            raise BBError(504, f"Zaman aşımı ({self.timeout:g} sn). Ücret düşmüş olabilir.") from exc
+            raise BBError(504, f"Timed out ({self.timeout:g} s). The fee may have been charged.") from exc
         except httpx.HTTPError as exc:
-            raise BBError(503, f"Servise ulaşılamadı ({self.base_url})") from exc
+            raise BBError(503, f"Could not reach the service ({self.base_url})") from exc
 
     def _parse(self, response: httpx.Response) -> dict:
         request_id = response.headers.get("x-request-id")
@@ -135,9 +135,9 @@ class BBAnonym:
         try:
             body = response.json()
         except ValueError as exc:
-            raise BBError(502, "Servis JSON dönmedi", request_id) from exc
+            raise BBError(502, "The service did not return JSON", request_id) from exc
         if not isinstance(body, dict):
-            raise BBError(502, "Servis JSON dönmedi", request_id)
+            raise BBError(502, "The service did not return JSON", request_id)
         body["_request_id"] = request_id
         return body
 
@@ -168,13 +168,13 @@ class BBAnonym:
         health_data: bool = False,
         llm_review: bool = False,
     ) -> Tagged:
-        """Metni anonimleştirir. 1 kredi.
+        """Anonymizes text. 1 credit.
 
-        persist: True → harita serviste, Tagged.doc_id dolu. False → Tagged.state dolu.
-        placeholder_style: "angle" → <PERSON_0>. "bracket_tr" → [KİŞİ_1]. Başka değer BBError(400).
-        keep_legal_form: True → şirket türü eki etiketin dışında: [ŞİRKET_1] A.Ş.
-        health_data: True → tanı, ilaç, tahlil, kan grubu gibi sağlık verisi de etiketlenir.
-        llm_review: True → kuralların kaçırdıkları LLM ile ikinci kez aranır. Durum Tagged.llm_review.
+        persist: True → mapping on the service, Tagged.doc_id set. False → Tagged.state set.
+        placeholder_style: "angle" → <PERSON_0>. "bracket_tr" → [KİŞİ_1]. Any other value: BBError(400).
+        keep_legal_form: True → company type suffix stays outside the tag: [ŞİRKET_1] A.Ş.
+        health_data: True → health data such as diagnoses, drugs, lab results and blood type is tagged too.
+        llm_review: True → an LLM searches a second time for what the rules missed. Status in Tagged.llm_review.
         """
         options = _options(placeholder_style, keep_legal_form, health_data, llm_review)
         response = self._send("POST", "/v1/anonymize", json={"text": text, "persist": persist, **options})
@@ -191,7 +191,7 @@ class BBAnonym:
         health_data: bool = False,
         llm_review: bool = False,
     ) -> Tagged:
-        """Bayttan tek dosya (.txt, .pdf, .docx). 1 kredi. Seçenekler anonymize ile aynı."""
+        """One file from bytes (.txt, .pdf, .docx). 1 credit. Options as in anonymize."""
         options = _options(placeholder_style, keep_legal_form, health_data, llm_review)
         response = self._send(
             "POST",
@@ -211,7 +211,7 @@ class BBAnonym:
         health_data: bool = False,
         llm_review: bool = False,
     ) -> Tagged:
-        """Yoldan tek dosya. 1 kredi. Seçenekler anonymize ile aynı."""
+        """One file from a path. 1 credit. Options as in anonymize."""
         file_path = Path(path)
         return self.anonymize_bytes(
             file_path.name,
@@ -233,10 +233,10 @@ class BBAnonym:
         health_data: bool = False,
         llm_review: bool = False,
     ) -> Tagged:
-        """1–3 dosya, tek doc_id. 1 kredi. Seçenekler anonymize ile aynı."""
+        """1–3 files, one doc_id. 1 credit. Options as in anonymize."""
         options = _options(placeholder_style, keep_legal_form, health_data, llm_review)
         if not 1 <= len(paths) <= 3:
-            raise BBError(400, "Bir istekte 1–3 dosya")
+            raise BBError(400, "1–3 files per request")
         files = []
         for path in paths:
             file_path = Path(path)
@@ -263,8 +263,8 @@ class BBAnonym:
 
 
 class MaskSession:
-    """persist=True ise harita bizde kalır ve çıkışta silinir.
-    persist=False ise state oturum nesnesindedir. Seçenekler oturum boyunca sabittir."""
+    """persist=True keeps the mapping on the service and deletes it on exit.
+    persist=False keeps the state in the session object. Options are fixed for the whole session."""
 
     def __init__(
         self,
@@ -302,10 +302,10 @@ class MaskSession:
     def restore(self, model_text: str) -> str:
         if self.persist:
             if not self._doc_id:
-                raise BBError(400, "Oturumda anonymize yok")
+                raise BBError(400, "Nothing anonymized in this session")
             return self._client.restore(self._doc_id, model_text)
         if not self._state:
-            raise BBError(400, "Oturumda state yok")
+            raise BBError(400, "No state in this session")
         return self._client.restore(self._state, model_text)
 
     def close(self) -> None:
@@ -324,17 +324,17 @@ _current: BBAnonym | None = None
 
 
 def init(api_key: str, base_url: str = DEFAULT_BASE_URL, timeout: float = DEFAULT_TIMEOUT) -> BBAnonym:
-    """Süreçte bir kez. Model çağrısı değildir."""
+    """Once per process. Not a model call."""
     global _current
     if not api_key.strip():
-        raise BBError(401, "api_key boş")
+        raise BBError(401, "api_key is empty")
     _current = BBAnonym(base_url, api_key.strip(), timeout)
     return _current
 
 
 def _require() -> BBAnonym:
     if _current is None:
-        raise BBError(401, "bb_mask.init çağrılmadı")
+        raise BBError(401, "bb_mask.init was not called")
     return _current
 
 
@@ -347,13 +347,13 @@ def anonymize(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """Metni anonimleştirir. 1 kredi. init gerekir.
+    """Anonymizes text. 1 credit. Requires init.
 
-    persist: True → harita serviste, Tagged.doc_id dolu. False → Tagged.state dolu.
-    placeholder_style: "angle" → <PERSON_0>. "bracket_tr" → [KİŞİ_1]. Başka değer BBError(400).
-    keep_legal_form: True → şirket türü eki etiketin dışında: [ŞİRKET_1] A.Ş.
-    health_data: True → tanı, ilaç, tahlil, kan grubu gibi sağlık verisi de etiketlenir.
-    llm_review: True → kuralların kaçırdıkları LLM ile ikinci kez aranır. Durum Tagged.llm_review.
+    persist: True → mapping on the service, Tagged.doc_id set. False → Tagged.state set.
+    placeholder_style: "angle" → <PERSON_0>. "bracket_tr" → [KİŞİ_1]. Any other value: BBError(400).
+    keep_legal_form: True → company type suffix stays outside the tag: [ŞİRKET_1] A.Ş.
+    health_data: True → health data such as diagnoses, drugs, lab results and blood type is tagged too.
+    llm_review: True → an LLM searches a second time for what the rules missed. Status in Tagged.llm_review.
     """
     return _require().anonymize(
         text,
@@ -374,7 +374,7 @@ def anonymize_file(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """Yoldan tek dosya (.txt, .pdf, .docx). 1 kredi. Seçenekler anonymize ile aynı."""
+    """One file from a path (.txt, .pdf, .docx). 1 credit. Options as in anonymize."""
     return _require().anonymize_file(
         path,
         persist,
@@ -395,7 +395,7 @@ def anonymize_bytes(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """Bayttan tek dosya. 1 kredi. Seçenekler anonymize ile aynı."""
+    """One file from bytes. 1 credit. Options as in anonymize."""
     return _require().anonymize_bytes(
         filename,
         content,
@@ -416,7 +416,7 @@ def anonymize_documents(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """1–3 dosya, tek doc_id. 1 kredi. Seçenekler anonymize ile aynı."""
+    """1–3 files, one doc_id. 1 credit. Options as in anonymize."""
     return _require().anonymize_documents(
         paths,
         persist,
@@ -448,7 +448,7 @@ def session(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Iterator[MaskSession]:
-    """with ile MaskSession. Seçenekler anonymize ile aynı; oturumdaki her çağrıya gider."""
+    """MaskSession for use with `with`. Options as in anonymize; applied to every call in the session."""
     handle = MaskSession(
         _require(),
         persist,
@@ -472,7 +472,7 @@ async def aanonymize(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """anonymize'ın async karşılığı. Seçenekler aynı."""
+    """Async version of anonymize. Same options."""
     return await asyncio.to_thread(
         anonymize,
         text,
@@ -493,7 +493,7 @@ async def aanonymize_file(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """anonymize_file'ın async karşılığı. Seçenekler aynı."""
+    """Async version of anonymize_file. Same options."""
     return await asyncio.to_thread(
         anonymize_file,
         path,
@@ -514,7 +514,7 @@ async def aanonymize_documents(
     health_data: bool = False,
     llm_review: bool = False,
 ) -> Tagged:
-    """anonymize_documents'ın async karşılığı. Seçenekler aynı."""
+    """Async version of anonymize_documents. Same options."""
     return await asyncio.to_thread(
         anonymize_documents,
         paths,

@@ -6,9 +6,9 @@
 
   <groupId>tr.com.bigbrains</groupId>
   <artifactId>bb-mask</artifactId>
-  <version>0.3.0</version>
+  <version>0.3.1</version>
   <name>bb-mask</name>
-  <description>bb-mask istemcisi. anonymize ve restore; model çağrısı yok.</description>
+  <description>bb-mask client. anonymize and restore; no model calls.</description>
   <url>https://app.bbmask.co/#/sdk</url>
 
   <licenses>

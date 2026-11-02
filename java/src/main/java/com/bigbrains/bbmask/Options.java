@@ -1,6 +1,6 @@
 package com.bigbrains.bbmask;
 
-/** Anonymize ve session seçenekleri. persist varsayılanı true, etiket biçimi angle. */
+/** Options for anonymize and session. persist defaults to true, the tag format to angle. */
 public final class Options {
     public boolean persist = true;
     public String placeholderStyle = "angle";
@@ -48,7 +48,7 @@ public final class Options {
             copy.placeholderStyle = "angle";
         }
         if (!"angle".equals(copy.placeholderStyle) && !"bracket_tr".equals(copy.placeholderStyle)) {
-            throw new BBError(400, "placeholder_style angle veya bracket_tr olmalı", null);
+            throw new BBError(400, "placeholder_style must be angle or bracket_tr", null);
         }
         return copy;
     }

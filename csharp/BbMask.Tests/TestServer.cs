@@ -140,7 +140,7 @@ internal sealed class TestServer : IDisposable
         {
             var read = await stream.ReadAsync(buffer, ct);
             if (read == 0)
-                throw new IOException("başlık gelmedi");
+                throw new IOException("headers did not arrive");
             data.Write(buffer, 0, read);
             var bytes = data.ToArray();
             for (var i = 0; i <= bytes.Length - 4; i++)
@@ -155,7 +155,7 @@ internal sealed class TestServer : IDisposable
                 }
             }
             if (bytes.Length > 1024 * 1024)
-                throw new IOException("başlık çok büyük");
+                throw new IOException("headers too large");
         }
     }
 
@@ -182,7 +182,7 @@ internal sealed class TestServer : IDisposable
         {
             var read = await stream.ReadAsync(result.AsMemory(offset, count - offset), ct);
             if (read == 0)
-                throw new IOException("gövde eksik");
+                throw new IOException("body incomplete");
             offset += read;
         }
         return result;

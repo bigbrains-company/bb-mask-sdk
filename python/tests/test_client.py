@@ -1,4 +1,4 @@
-"""Yerel sahte sunucuya karşı istemci davranışı. Gerçek servise gidilmez."""
+"""Client behaviour against a local fake server. The real service is never called."""
 
 from __future__ import annotations
 

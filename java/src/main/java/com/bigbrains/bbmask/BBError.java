@@ -1,6 +1,6 @@
 package com.bigbrains.bbmask;
 
-/** Servis veya istemci hatası. getMessage() ayrıntı metnidir. */
+/** Service or client error. getMessage() is the detail text. */
 public final class BBError extends RuntimeException {
     private final int statusCode;
     private final String detail;

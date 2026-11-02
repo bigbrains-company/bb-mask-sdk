@@ -1,7 +1,7 @@
 {
   "name": "bb-mask",
-  "version": "0.3.0",
-  "description": "Data Mask istemcisi: metin ve dosya anonimleştirme, restore. Model çağrısı yok.",
+  "version": "0.3.1",
+  "description": "Data Mask client: text and file anonymization, restore. No model calls.",
   "keywords": ["anonymization", "kvkk", "pii", "data-mask", "bigbrains"],
   "homepage": "https://app.bbmask.co/#/sdk",
   "repository": {

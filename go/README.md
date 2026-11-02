@@ -1,20 +1,22 @@
 # bb-mask
 
-Türkçe hukuki metindeki kişisel veriyi etiketler, model cevabındaki etiketleri geri açar. Paket ince bir HTTP istemcisidir. Model çağırmaz.
+**English** · [Türkçe](https://github.com/bigbrains-company/bb-mask-sdk/blob/main/go/README.tr.md)
 
-Müşteri Data Mask konsolundan `dm_test_` anahtarı alır. Kendi backend’i bu paketi kurar ve anahtarı `Init`’e verir. LLM satırı müşterinindir; SDK’nın öncesine `Anonymize`, sonrasına `Restore` konur.
+Tags personal data in Turkish legal text and puts the real values back into the model’s answer. The package is a thin HTTP client. It never calls a model.
 
-Go 1.22+. Bağımlılık yok; `net/http` yeter. Python paketi `python/` klasöründedir. Node, C# ve Java aynı deponun diğer klasörlerindedir.
+You get a `dm_test_` key from the Data Mask console. Your backend installs this package and passes the key to `Init`. The LLM call is yours; `Anonymize` goes before it and `Restore` after it.
+
+Go 1.22+. No dependencies; `net/http` is enough. The Python package is in `python/`. Node, C# and Java live in the other folders of the same repository.
 
 ```go
 _, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"))
 tagged, err := bbmask.Anonymize("Davacı Hasan Demirkol, TC 62601815964")
-cevap, err := kendiLLM(tagged.Text)
-duz, err := bbmask.Restore(tagged.DocID, cevap)
+reply, err := myLLM(tagged.Text)
+restored, err := bbmask.Restore(tagged.DocID, reply)
 _, err = bbmask.Delete(tagged.DocID)
 ```
 
-Python ve Node hata fırlatır. Go aynı durumu `error` olarak döner. `errors.As` ile `*BBError` alınır. Python’daki `aanonymize` ailesi yoktur; çağrı bloklar, eşzamanlılık `go` ile kurulur.
+Python and Node throw. Go returns the same condition as an `error`; use `errors.As` to get `*BBError`. There is no equivalent of Python’s `aanonymize` family; calls block, and you get concurrency with `go`.
 
 | Python | Node | Go |
 |---|---|---|
@@ -26,35 +28,35 @@ Python ve Node hata fırlatır. Go aynı durumu `error` olarak döner. `errors.A
 | `entities_found` | `entitiesFound` | `EntitiesFound` |
 | `llm_review` | `llmReview` | `LLMReview` |
 
-Teldeki alan adları Python ile aynıdır: `doc_id`, `placeholder_style`, `keep_legal_form`.
+Field names on the wire are the same as in Python: `doc_id`, `placeholder_style`, `keep_legal_form`.
 
-## Kurulum
+## Install
 
-Modül yolu `github.com/bigbrains-company/bb-mask-sdk/go`, paket adı `bbmask`. Depo https://github.com/bigbrains-company/bb-mask-sdk; `go.mod` ilk satırı bununla aynıdır.
+Module path `github.com/bigbrains-company/bb-mask-sdk/go`, package name `bbmask`. Repository https://github.com/bigbrains-company/bb-mask-sdk; the first line of `go.mod` matches it.
 
-Paket yayınlanınca:
+Once published:
 
 ```bash
-go get github.com/bigbrains-company/bb-mask-sdk/go@v0.3.0
+go get github.com/bigbrains-company/bb-mask-sdk/go@v0.3.1
 ```
 
-Bu depoyu çektikten sonra tüketen modülün `go.mod` dosyasına:
+From a clone of this repository, add this to the consuming module’s `go.mod`:
 
 ```text
-require github.com/bigbrains-company/bb-mask-sdk/go v0.3.0
+require github.com/bigbrains-company/bb-mask-sdk/go v0.3.1
 
-replace github.com/bigbrains-company/bb-mask-sdk/go => /yol/bb-mask-sdk/go
+replace github.com/bigbrains-company/bb-mask-sdk/go => /path/to/bb-mask-sdk/go
 ```
 
-`replace` sağındaki yol, bu `go` klasörünün diskteki yeridir. Depo kökünde modül varsa `./bb-mask-sdk/go` yazılır.
+The path on the right of `replace` is where this `go` folder lives on disk. If the module sits at the repository root, write `./bb-mask-sdk/go`.
 
-Test, bu klasörden:
+Tests, from this folder:
 
 ```bash
 go test ./...
 ```
 
-Anahtarı koda veya repoya yazmayın.
+Never put the key in code or in the repository.
 
 ```bash
 export BB_ANONYM_TOKEN="dm_test_..."
@@ -64,64 +66,64 @@ export BB_ANONYM_TOKEN="dm_test_..."
 import "github.com/bigbrains-company/bb-mask-sdk/go"
 ```
 
-`Init` süreçte bir kez çalışır. Model çağrısı değildir. Modül fonksiyonları bundan önce çağrılırsa `BBError` 401 döner ve servise gitmez.
+`Init` runs once per process. It is not a model call. Package functions called before it return a 401 `BBError` and never reach the service.
 
 ```go
-istemci, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"), bbmask.Config{
-    BaseURL: "https://app.bbmask.co", // varsayılan budur
-    Timeout: 150 * time.Second,         // varsayılan budur
+client, err := bbmask.Init(os.Getenv("BB_ANONYM_TOKEN"), bbmask.Config{
+    BaseURL: "https://app.bbmask.co", // this is the default
+    Timeout: 150 * time.Second,         // this is the default
 })
 ```
 
-| Alan | Anlam |
+| Field | Meaning |
 |---|---|
-| `apiKey` | Konsoldaki `dm_test_` anahtarı. Boşsa veya yalnız boşluksa 401. Kurulu istemci değişmez. |
-| `BaseURL` | Servis adresi. Boşsa `https://app.bbmask.co`. |
-| `Timeout` | HTTP zaman aşımı. Sıfırsa 150 saniye; motor 120 sn bekler, istemci ondan sonra pes eder. |
+| `apiKey` | The `dm_test_` key from the console. Empty or whitespace → 401. The existing client is left unchanged. |
+| `BaseURL` | Service address. Empty → `https://app.bbmask.co`. |
+| `Timeout` | HTTP timeout. Zero → 150 seconds; the engine waits up to 120 s and the client gives up after that. |
 
-Dönüş `*BBAnonym`’dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `Init` öncekinin yerine geçer.
+Returns a `*BBAnonym`. Package functions use this client. A second `Init` replaces the first.
 
-İkinci bir anahtar gerekiyorsa `Init` kullanmadan `New` kurun.
+If you need a second key, construct one with `New` instead of `Init`.
 
 ```go
-diger := bbmask.New("https://app.bbmask.co", token, 150*time.Second)
+other := bbmask.New("https://app.bbmask.co", token, 150*time.Second)
 ```
 
-## Nesneler
+## Objects
 
 ### `Tagged`
 
-`Anonymize`, `AnonymizeFile` ve `AnonymizeDocuments` bunu döner.
+Returned by `Anonymize`, `AnonymizeFile` and `AnonymizeDocuments`.
 
-| Alan | Ne zaman dolu |
+| Field | When it is set |
 |---|---|
-| `Text` | Her zaman. Kişisel veri yerine etiket vardır. |
-| `DocID` | `WithPersist(true)` (varsayılan). Boş string, Python’daki `None` karşılığıdır. |
-| `State` | `WithPersist(false)`. Haritanın kendisi. Servise yazılmaz. |
-| `EntitiesFound` | Tip başına sayı: `map[string]int{"PERSON": 2}`. Düz isim taşımaz. |
-| `BalanceCredits` | Çağrıdan sonra kalan bakiye: `"9.00"`. |
-| `RequestID` | Yanıtın `X-Request-Id` değeri. |
-| `PlaceholderStyle` | `"angle"` veya `"bracket_tr"`. |
-| `KeepLegalForm` | Uygulanan değer. |
-| `HealthData` | Uygulanan değer. |
-| `LLMReview` | `WithLLMReview(true)` istendiyse durum özeti. Düz isim taşımaz. |
+| `Text` | Always. Personal data is replaced by tags. |
+| `DocID` | `WithPersist(true)` (default). An empty string is the equivalent of Python’s `None`. |
+| `State` | `WithPersist(false)`. The mapping itself. Never stored on the service. |
+| `EntitiesFound` | Count per type: `map[string]int{"PERSON": 2}`. No plain names. |
+| `BalanceCredits` | Balance left after the call: `"9.00"`. |
+| `RequestID` | The response’s `X-Request-Id`. |
+| `PlaceholderStyle` | `"angle"` or `"bracket_tr"`. |
+| `KeepLegalForm` | Applied value. |
+| `HealthData` | Applied value. |
+| `LLMReview` | If `WithLLMReview(true)` was requested, a status summary. No plain names. |
 
-### Seçenekler
+### Options
 
-Hepsi kapalı başlar. `persist` varsayılanı `true`, etiket biçimi `"angle"`.
+All options are off by default. `persist` defaults to `true` and the tag format to `"angle"`.
 
-| Fonksiyon | Varsayılan | Etki |
+| Function | Default | Effect |
 |---|---|---|
-| `WithPersist` | `true` | `false` ise harita servise yazılmaz, `DocID` boş kalır. |
-| `WithPlaceholderStyle` | `"angle"` | `"bracket_tr"` → `[KİŞİ_1]`. Başka değer istek gitmeden 400. |
-| `WithKeepLegalForm` | `false` | `true` ise şirket türü eki etiketin dışında kalır. |
-| `WithHealthData` | `false` | `true` ise sağlık verisi de etiketlenir. |
-| `WithLLMReview` | `false` | `true` ise ikinci bir LLM geçişi istenir. |
+| `WithPersist` | `true` | `false` stores nothing on the service and leaves `DocID` empty. |
+| `WithPlaceholderStyle` | `"angle"` | `"bracket_tr"` → `[KİŞİ_1]`. Any other value returns 400 before the request is sent. |
+| `WithKeepLegalForm` | `false` | `true` keeps the company type suffix outside the tag. |
+| `WithHealthData` | `false` | `true` also tags health data. |
+| `WithLLMReview` | `false` | `true` requests a second LLM pass. |
 
-Sabitler: `StyleAngle`, `StyleBracketTR`.
+Constants: `StyleAngle`, `StyleBracketTR`.
 
 ```go
-tagged, err := bbmask.Anonymize(metin,
+tagged, err := bbmask.Anonymize(text,
     bbmask.WithPlaceholderStyle(bbmask.StyleBracketTR),
     bbmask.WithKeepLegalForm(true),
     bbmask.WithHealthData(true),
@@ -131,66 +133,66 @@ tagged, err := bbmask.Anonymize(metin,
 
 ### `BBError`
 
-`StatusCode`, `Detail`, `RequestID`. `err.Error()` ayrıntı metnidir. Ağ hatası da `*BBError` olur; `net/http` hatası dışarı sızmaz.
+`StatusCode`, `Detail`, `RequestID`. `err.Error()` is the detail text. Network errors are `*BBError` too; no `net/http` error leaks out.
 
 ```go
 var bb *bbmask.BBError
 if errors.As(err, &bb) && bb.StatusCode == 402 {
-    // bakiye yok
+    // no balance
 }
 ```
 
-| Kod | Anlam |
+| Code | Meaning |
 |---|---|
-| 400 | Geçersiz `placeholder_style`, 1–3 dışı dosya sayısı, oturumda anonymize yok, `Restore` ne string ne map aldı. |
-| 401 | `Init` çağrılmadı, anahtar boş veya tanınmıyor. |
-| 402 | Bakiye yok. |
-| 404 | Harita yok. |
-| 413 | Dosya 20 MB üstü. |
-| 502 | Yanıt JSON değil. |
-| 503 | Servise ulaşılamadı. |
-| 504 | `Timeout` doldu. İstek servise ulaşmış olabilir. |
+| 400 | Invalid `placeholder_style`, file count outside 1–3, nothing anonymized in the session, or `Restore` got neither a string nor a map. |
+| 401 | `Init` not called, or the key is empty or unknown. |
+| 402 | No balance. |
+| 404 | Mapping not found. |
+| 413 | File larger than 20 MB. |
+| 502 | The response is not JSON. |
+| 503 | Service unreachable. |
+| 504 | `Timeout` expired. The request may have reached the service. |
 
-## Çağrılar
+## Calls
 
-Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
+File extensions: `.txt`, `.pdf` or `.docx`. Up to 20 MB per file.
 
-`AnonymizeFile(path)` yolu okur. Bayt sizdeyse `AnonymizeBytes(filename, content)` kullanın; iki ad pakette ve `BBAnonym` üzerinde aynı anlama gelir.
+`AnonymizeFile(path)` reads a path. If you already hold the bytes, use `AnonymizeBytes(filename, content)`; both names mean the same thing on the package and on `BBAnonym`.
 
-### Harita serviste
+### Mapping on the service
 
 ```go
-tagged, err := bbmask.Anonymize(metin)
-duz, err := bbmask.Restore(tagged.DocID, cevap)
+tagged, err := bbmask.Anonymize(text)
+restored, err := bbmask.Restore(tagged.DocID, reply)
 _, err = bbmask.Delete(tagged.DocID)
 ```
 
-Tek dosya ve birden çok dosya (üst sınır 3, tek `DocID`, tek ücret):
+One file and several files (up to 3, one `DocID`, one fee):
 
 ```go
-tagged, err := bbmask.AnonymizeFile("dilekce.pdf")
-coklu, err := bbmask.AnonymizeDocuments([]string{"dilekce.pdf", "cevap.docx", "ek.txt"})
+tagged, err := bbmask.AnonymizeFile("petition.pdf")
+batch, err := bbmask.AnonymizeDocuments([]string{"petition.pdf", "response.docx", "appendix.txt"})
 ```
 
-### Sözlük
+### Dictionary
 
 ```go
-sozluk, err := bbmask.GetMap(tagged.DocID, false)
-silinerek, err := bbmask.GetMap(tagged.DocID, true)
+mapping, err := bbmask.GetMap(tagged.DocID, false)
+readOnce, err := bbmask.GetMap(tagged.DocID, true)
 ```
 
-`true` okuyunca servisteki kopyayı da siler. Sözlük düz isim taşır; modele yalnız `tagged.Text` gider.
+`true` also deletes the service copy after reading. The dictionary carries plain names; only `tagged.Text` goes to the model.
 
-### Harita sizde
+### Mapping on your side
 
 ```go
-tagged, err := bbmask.Anonymize(metin, bbmask.WithPersist(false))
-duz, err := bbmask.Restore(tagged.State, cevap)
+tagged, err := bbmask.Anonymize(text, bbmask.WithPersist(false))
+restored, err := bbmask.Restore(tagged.State, reply)
 ```
 
-### Oturum
+### Session
 
-`DocID` ve `State` oturumun içindedir. `Close` çıkışta çalışır: `Persist` true ise tutulan her kimlik silinir. Silme `BBError` dönerse yutulur.
+The `DocID` and `State` stay inside the session. `Close` runs on exit: with `Persist` true every kept id is deleted. A `BBError` from the delete is swallowed.
 
 ```go
 s, err := bbmask.Session()
@@ -199,17 +201,17 @@ if err != nil {
 }
 defer s.Close()
 
-tagged, err := s.Anonymize(metin)
-duz, err := s.Restore(cevap)
+tagged, err := s.Anonymize(text)
+restored, err := s.Restore(reply)
 ```
 
-`BBAnonym` eşzamanlı çağrılabilir. Aynı `MaskSession` sırayla kullanılır.
+`BBAnonym` is safe for concurrent use. Use a single `MaskSession` sequentially.
 
 ```go
 s, err := bbmask.Session(bbmask.WithPersist(false), bbmask.WithPlaceholderStyle("bracket_tr"))
 ```
 
-## Referans
+## Reference
 
 ```go
 Init(apiKey string, cfg ...Config) (*BBAnonym, error)
@@ -223,13 +225,13 @@ Delete(docID string) (bool, error)
 Session(opts ...Option) (*MaskSession, error)
 ```
 
-`New` kurucu `Init` istemez; aynı metotları taşır. Anahtar dışa açık alan değildir; `%+v` ve `String()` maskeler.
+The `New` constructor does not need `Init`; it has the same methods. The key is not an exported field; `%+v` and `String()` mask it.
 
 `MaskSession`: `Anonymize`, `AnonymizeFile`, `AnonymizeDocuments`, `Restore`, `Close`.
 
-## Bu pakette olmayanlar
+## Not in this package
 
-- Müşterinin LLM çağrısı.
-- Anahtar üretimi ve bakiye. Onlar panelde.
-- Etiket onarımı. Bozuk etiketi servis düzeltir.
-- Python’daki `aanonymize` ailesi. Go çağrısı bloklar.
+- Your LLM call.
+- Key creation and balance. Those are in the console.
+- Tag repair. The service fixes broken tags.
+- Python’s `aanonymize` family. Go calls block.

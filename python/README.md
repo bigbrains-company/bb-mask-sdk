@@ -1,8 +1,10 @@
 # bb-mask
 
-Türkçe hukuki metindeki kişisel veriyi etiketler, model cevabındaki etiketleri geri açar. Paket ince bir HTTP istemcisidir. Model çağırmaz, metin yazdırmaz, bekletmez.
+**English** · [Türkçe](https://github.com/bigbrains-company/bb-mask-sdk/blob/main/python/README.tr.md)
 
-Müşteri Data Mask konsolundan `dm_test_` anahtarı alır. Kendi backend’i bu paketi kurar ve anahtarı `init`’e verir. LLM satırı müşterinindir; SDK’nın öncesine `anonymize`, sonrasına `restore` konur.
+Tags personal data in Turkish legal text and puts the real values back into the model’s answer. The package is a thin HTTP client. It never calls a model, never prints, never sleeps.
+
+You get a `dm_test_` key from the Data Mask console. Your backend installs this package and passes the key to `init`. The LLM call is yours; `anonymize` goes before it and `restore` after it.
 
 ```python
 import os
@@ -11,76 +13,76 @@ import bb_mask
 bb_mask.init(api_key=os.environ["BB_ANONYM_TOKEN"])
 
 
-def ozetle(metin: str) -> str:
-    tagged = bb_mask.anonymize(metin)
-    cevap = kendi_llm(tagged.text)                 # bu satır sizde
-    return bb_mask.restore(tagged.doc_id, cevap)
+def summarize(text: str) -> str:
+    tagged = bb_mask.anonymize(text)
+    reply = my_llm(tagged.text)                    # your code
+    return bb_mask.restore(tagged.doc_id, reply)
 ```
 
-Python 3.11+. Tek bağımlılık `httpx`. Bu klasör Python paketidir. Node, Go, C# ve Java aynı deponun diğer klasörlerindedir.
+Python 3.11+. The only dependency is `httpx`. This folder is the Python package. Node, Go, C# and Java live in the other folders of the same repository.
 
-## Kurulum
+## Install
 
-Paket yayınlanınca:
+Once published:
 
 ```bash
 pip install bb-mask
 ```
 
-Yayın öncesi, depo kökünden:
+Before release, from the repository root:
 
 ```bash
 pip install -e python
 ```
 
-Anahtarı koda veya repoya yazmayın. Ortam değişkeni veya kendi ayar dosyanız yeter.
+Never put the key in code or in the repository. An environment variable or your own config file is enough.
 
 ```bash
 export BB_ANONYM_TOKEN="dm_test_..."
 ```
 
-`init` süreçte bir kez çalışır. Model çağrısı değildir. Modül fonksiyonları (`bb_mask.anonymize` ve diğerleri) bundan önce çağrılırsa `BBError(401)` verir ve servise gitmez.
+`init` runs once per process. It is not a model call. Module functions (`bb_mask.anonymize` and the rest) called before it raise `BBError(401)` and never reach the service.
 
 ```python
-istemci = bb_mask.init(
+client = bb_mask.init(
     api_key=os.environ["BB_ANONYM_TOKEN"],
-    base_url="https://app.bbmask.co",  # varsayılan budur
-    timeout=150,                       # saniye
+    base_url="https://app.bbmask.co",  # this is the default
+    timeout=150,                       # seconds
 )
 ```
 
-| Argüman | Tip | Anlam |
+| Argument | Type | Meaning |
 |---|---|---|
-| `api_key` | `str` | Konsoldaki `dm_test_` anahtarı. Boşsa `BBError(401)`. |
-| `base_url` | `str` | Servis adresi. Varsayılan `https://app.bbmask.co`. |
-| `timeout` | `float` | HTTP zaman aşımı, saniye. Varsayılan `150`; motor 120 sn bekler, istemci ondan sonra pes eder. |
+| `api_key` | `str` | The `dm_test_` key from the console. Empty → `BBError(401)`. |
+| `base_url` | `str` | Service address. Default `https://app.bbmask.co`. |
+| `timeout` | `float` | HTTP timeout in seconds. Default `150`; the engine waits up to 120 s and the client gives up after that. |
 
-Dönüş `BBAnonym`'dur. Modül fonksiyonları bu istemciyi kullanır. İkinci `init` öncekinin yerine geçer.
+Returns a `BBAnonym`. Module functions use this client. A second `init` replaces the first.
 
-İkinci bir anahtar gerekiyorsa süreç globaline dokunmadan `BBAnonym` kurun. Kurucu `init` istemez.
+If you need a second key, construct `BBAnonym` without touching the process-wide client. The constructor does not need `init`.
 
 ```python
-diger = bb_mask.BBAnonym("https://app.bbmask.co", token, timeout=150)
+other = bb_mask.BBAnonym("https://app.bbmask.co", token, timeout=150)
 ```
 
-## Nesneler
+## Objects
 
 ### `Tagged`
 
-`anonymize`, `anonymize_file` ve `anonymize_documents` bunu döner.
+Returned by `anonymize`, `anonymize_file` and `anonymize_documents`.
 
-| Alan | Tip | Ne zaman dolu |
+| Field | Type | When it is set |
 |---|---|---|
-| `text` | `str` | Her zaman. Kişisel veri yerine etiket vardır: `<PERSON_0>`, `<TR_NATIONAL_ID_0>`. |
-| `doc_id` | `str \| None` | `persist=True` (varsayılan). Haritanın servisteki anahtarı. Yalnız aynı çalışma alanının anahtarı açar. |
-| `state` | `dict \| None` | `persist=False`. Haritanın kendisi. Servise yazılmaz. |
-| `entities_found` | `dict[str, int]` | Her zaman. Tip başına sayı: `{"PERSON": 2}`. Düz isim taşımaz. |
-| `balance_credits` | `str \| None` | Çağrıdan sonra kalan bakiye: `"9.00"`. |
-| `request_id` | `str \| None` | Yanıtın `X-Request-Id` değeri. Konsoldaki Kullanım satırıyla eşleşir. |
-| `placeholder_style` | `str` | Uygulanan etiket biçimi: `"angle"` veya `"bracket_tr"`. |
-| `keep_legal_form` | `bool` | Uygulanan değer. |
-| `health_data` | `bool` | Uygulanan değer. |
-| `llm_review` | `dict \| None` | `llm_review=True` istendiyse durum özeti: `status`, `model`, `chunks`, `chunks_failed`, `elapsed_ms`, `added_spans`, `error`. Düz isim taşımaz. |
+| `text` | `str` | Always. Personal data is replaced by tags: `<PERSON_0>`, `<TR_NATIONAL_ID_0>`. |
+| `doc_id` | `str \| None` | `persist=True` (default). The mapping’s key on the service. Only a key from the same workspace can open it. |
+| `state` | `dict \| None` | `persist=False`. The mapping itself. Never stored on the service. |
+| `entities_found` | `dict[str, int]` | Always. Count per type: `{"PERSON": 2}`. No plain names. |
+| `balance_credits` | `str \| None` | Balance left after the call: `"9.00"`. |
+| `request_id` | `str \| None` | The response’s `X-Request-Id`. Matches a row on the console’s Usage page. |
+| `placeholder_style` | `str` | Applied tag format: `"angle"` or `"bracket_tr"`. |
+| `keep_legal_form` | `bool` | Applied value. |
+| `health_data` | `bool` | Applied value. |
+| `llm_review` | `dict \| None` | If `llm_review=True` was requested, a status summary: `status`, `model`, `chunks`, `chunks_failed`, `elapsed_ms`, `added_spans`, `error`. No plain names. |
 
 ```python
 tagged = bb_mask.anonymize("Davacı Hasan Demirkol, TC 62601815964")
@@ -89,18 +91,18 @@ tagged.text     # "Davacı <PERSON_0>, TC <TR_NATIONAL_ID_0>"
 tagged.state    # None
 ```
 
-Etiket biçimi `<TIP_0>`. Aynı yüzey aynı numarayı alır. Model etiketi bozarsa (`<PERSON 0>`) onarım servistedir. Mahkeme ve kanun adları etiketlenmez.
+Tags look like `<TYPE_0>`. The same surface form gets the same number. If the model breaks a tag (`<PERSON 0>`), the service repairs it. Court and statute names are not tagged.
 
-### Seçenekler
+### Options
 
-Dört anonymize çağrısı (`anonymize`, `anonymize_file`, `anonymize_bytes`, `anonymize_documents`), async kardeşleri ve `session()` aynı isimli parametreleri alır. Yalnız isimle verilir. Hepsi kapalı başlar; servis kendi varsayılanına düşmez.
+All four anonymize calls (`anonymize`, `anonymize_file`, `anonymize_bytes`, `anonymize_documents`), their async counterparts and `session()` take the same keyword-only parameters. All are off by default; the service never falls back to its own defaults.
 
-| Parametre | Varsayılan | Etki |
+| Parameter | Default | Effect |
 |---|---|---|
-| `placeholder_style` | `"angle"` | `"angle"` → `<PERSON_0>`. `"bracket_tr"` → `[KİŞİ_1]`, `[ŞİRKET_1]`; 1'den başlar. Başka değer istek gitmeden `BBError(400)`. |
-| `keep_legal_form` | `False` | `True` → şirket türü eki etiketin dışında kalır: `[ŞİRKET_1] A.Ş.`, `<ORGANIZATION_0> Ltd. Şti.` |
-| `health_data` | `False` | `True` → KVKK m.6 sağlık verisi de etiketlenir: tanı, ilaç, tahlil, kan grubu, hasta no, sağlık kurumu. |
-| `llm_review` | `False` | `True` → kuralların kaçırdığı kişi, şirket, adres ve kimlikler bir LLM ile ikinci kez aranır. Model geçici anonim metni görür. Servis katmanı kapalıysa hata değildir; `Tagged.llm_review["status"]` bunu söyler. |
+| `placeholder_style` | `"angle"` | `"angle"` → `<PERSON_0>`. `"bracket_tr"` → `[KİŞİ_1]`, `[ŞİRKET_1]`; numbering starts at 1. Any other value raises `BBError(400)` before the request is sent. |
+| `keep_legal_form` | `False` | `True` → the company type suffix stays outside the tag: `[ŞİRKET_1] A.Ş.`, `<ORGANIZATION_0> Ltd. Şti.` |
+| `health_data` | `False` | `True` → also tags health data under KVKK Art. 6: diagnoses, medication, lab results, blood type, patient numbers, healthcare providers. |
+| `llm_review` | `False` | `True` → an LLM makes a second pass for people, companies, addresses and IDs the rules missed. The model sees the temporarily anonymized text. If the service layer is off, it is not an error; `Tagged.llm_review["status"]` tells you. |
 
 ```python
 tagged = bb_mask.anonymize(
@@ -114,11 +116,11 @@ tagged.text        # "Davalı [ŞİRKET_1] A.Ş. çalışanı [KİŞİ_1], tanı
 tagged.llm_review  # {"status": "ok", "model": "qwen/qwen3.8-27b", "added_spans": 0, ...}
 ```
 
-`state` ve `get_map` sözlüğü biçimden bağımsız kanonik etiket taşır (`<PERSON_0>`). `restore` iki biçimi de açar.
+The `state` and `get_map` dictionaries carry canonical tags (`<PERSON_0>`) regardless of format. `restore` opens both formats.
 
-### `state` / `get_map` sözlüğü
+### The `state` / `get_map` dictionary
 
-Şekil: `dict[str, dict[str, str]]`. Dış anahtar varlık tipi, iç anahtar düz metin, değer etikettir.
+Shape: `dict[str, dict[str, str]]`. The outer key is the entity type, the inner key is the plain text, the value is the tag.
 
 ```python
 {
@@ -127,169 +129,169 @@ tagged.llm_review  # {"status": "ok", "model": "qwen/qwen3.8-27b", "added_spans"
 }
 ```
 
-Sözlük düz isim taşır. Loga, bilete veya modele koymayın. `restore` bu sözlüğü kendisi kullanır; modele yalnız `tagged.text` gider.
+The dictionary carries plain names. Never put it in logs, tickets or the model. `restore` uses it for you; only `tagged.text` goes to the model.
 
 ### `BBError`
 
-`RuntimeError` alt sınıfı. `status_code: int`, `detail: str`, `request_id: str | None`. `str(hata)` ayrıntı metnidir. `request_id` servisten yanıt geldiyse doludur; destek isterken bu değeri iletin.
+Subclass of `RuntimeError`. `status_code: int`, `detail: str`, `request_id: str | None`. `str(error)` is the detail text. `request_id` is set when the service responded; include it when you contact support.
 
-Ağ hatası da `BBError` olur; `httpx` istisnası dışarı sızmaz.
+Network errors are `BBError` too; no `httpx` exception leaks out.
 
-| Kod | Anlam |
+| Code | Meaning |
 |---|---|
-| 400 | Boş metin, 1–3 dışı dosya sayısı, geçersiz `placeholder_style`, oturumda anonymize yok, `doc_id` ve `state` ikisi de yok. |
-| 401 | `init` çağrılmadı, anahtar boş veya tanınmıyor. |
-| 402 | Bakiye yok. Anonimleştirme servise gitmez. |
-| 404 | Harita yok. Silinmiş, `once=True` ile okunmuş, başka çalışma alanının veya servis tutmuyordur. |
-| 413 | Dosya 20 MB üstü. |
-| 502 | Motor hata verdi; anonymize ücreti iade edilir. Yanıt JSON değilse de 502 olur. |
-| 503 | Servise ulaşılamadı. İstek gitmedi. |
-| 504 | `timeout` doldu. İstek servise ulaşmış olabilir; ücret düşmüş olabilir. Konsoldaki Kullanım sayfasına bakın. |
+| 400 | Empty text, file count outside 1–3, invalid `placeholder_style`, nothing anonymized in the session, or neither `doc_id` nor `state` given. |
+| 401 | `init` not called, or the key is empty or unknown. |
+| 402 | No balance. Nothing is sent for anonymization. |
+| 404 | Mapping not found. It was deleted, read with `once=True`, belongs to another workspace, or was never stored. |
+| 413 | File larger than 20 MB. |
+| 502 | The engine failed; the anonymize fee is refunded. A non-JSON response is also 502. |
+| 503 | Service unreachable. The request was not sent. |
+| 504 | `timeout` expired. The request may have reached the service and the fee may have been charged. Check the Usage page in the console. |
 
-Ücret başarılı anonymize çağrısında düşer. Servis hata verirse ücret geri yazılır. `restore`, `get_map` ve `delete` ücret yazmaz.
+The fee is charged on a successful anonymize call. If the service fails, the fee is refunded. `restore`, `get_map` and `delete` are free.
 
 ### `MaskSession`
 
-`with bb_mask.session()` bunu verir. `doc_id` ve `state` oturumun içindedir.
+Returned by `with bb_mask.session()`. The `doc_id` and `state` stay inside the session.
 
-| Metod | Dönüş |
+| Method | Returns |
 |---|---|
 | `anonymize(text)` | `Tagged` |
-| `anonymize_file(path)` | `Tagged`. Yolu okur. |
+| `anonymize_file(path)` | `Tagged`. Reads the path. |
 | `anonymize_documents(paths)` | `Tagged` |
-| `restore(model_metni)` | `str` |
-| `close()` | `None`. Blok bitince kendiliğinden çağrılır. |
-| `persist` | `bool`. Kurgu 1 ise `True`. Oturumda sabittir. |
-| `options` | `dict`. `session(...)` içine verilen seçenekler. Her anonymize çağrısına gider. |
+| `restore(model_text)` | `str` |
+| `close()` | `None`. Called automatically when the block ends. |
+| `persist` | `bool`. `True` for pattern 1. Fixed for the session. |
+| `options` | `dict`. The options passed to `session(...)`. Sent with every anonymize call. |
 
-`restore` burada yalnız model metnini alır. Anonymize olmadan çağrılırsa `BBError(400)`. Blok bitince `close` çalışır: `persist=True` ise tutulan her `doc_id` silinir, `persist=False` ise state düşer ve servise silme gitmez.
+Here `restore` takes only the model text. Called before any anonymize, it raises `BBError(400)`. When the block ends `close` runs: with `persist=True` every kept `doc_id` is deleted; with `persist=False` the state is dropped and no delete is sent.
 
-## Çağrılar
+## Calls
 
-Hepsi `init` sonrasında. Dosya uzantısı `.txt`, `.pdf` veya `.docx`. Dosya başına tavan 20 MB.
+All of them need `init` first. File extensions: `.txt`, `.pdf` or `.docx`. Up to 20 MB per file.
 
-`anonymize_file(path)` bir yol alır ve dosyayı okur. Bayt sizdeyse `anonymize_bytes(filename, content)` kullanın. İki ad modülde ve `BBAnonym` üzerinde aynı anlama gelir. `MaskSession.anonymize_file(path)` de yolu okur.
+`anonymize_file(path)` takes a path and reads the file. If you already hold the bytes, use `anonymize_bytes(filename, content)`. Both names mean the same thing on the module and on `BBAnonym`. `MaskSession.anonymize_file(path)` reads a path too.
 
-### Kurgu 1 — harita serviste, siz `doc_id` tutarsınız
-
-```python
-tagged = bb_mask.anonymize(metin)
-cevap = kendi_llm(tagged.text)
-duz = bb_mask.restore(tagged.doc_id, cevap)
-bb_mask.delete(tagged.doc_id)          # iş bitince
-```
-
-Tek dosya:
+### Pattern 1 — mapping on the service, you keep the `doc_id`
 
 ```python
-tagged = bb_mask.anonymize_file("dilekce.pdf")
-duz = bb_mask.restore(tagged.doc_id, kendi_llm(tagged.text))
+tagged = bb_mask.anonymize(text)
+reply = my_llm(tagged.text)
+restored = bb_mask.restore(tagged.doc_id, reply)
+bb_mask.delete(tagged.doc_id)          # when you are done
 ```
 
-Birden çok dosya tek `doc_id` paylaşır. Aynı kişi iki dosyada da `<PERSON_0>` olur. Üst sınır 3 dosyadır. Ücret tek anonymize’dir.
+One file:
+
+```python
+tagged = bb_mask.anonymize_file("petition.pdf")
+restored = bb_mask.restore(tagged.doc_id, my_llm(tagged.text))
+```
+
+Several files share one `doc_id`. The same person is `<PERSON_0>` in both files. Up to 3 files. The fee is one anonymize.
 
 ```python
 tagged = bb_mask.anonymize_documents(
-    ["dilekce.pdf", "cevap.docx", "ek.txt"]
+    ["petition.pdf", "response.docx", "appendix.txt"]
 )
-duz = bb_mask.restore(tagged.doc_id, kendi_llm(tagged.text))
+restored = bb_mask.restore(tagged.doc_id, my_llm(tagged.text))
 ```
 
-`restore` orijinal dosyayı almaz. Modelin yazdığı metindeki etiketleri açar.
+`restore` does not take the original file. It opens the tags in the text the model wrote.
 
-### Kurgu 2 — aynı `doc_id`, üstüne sözlük
+### Pattern 2 — same `doc_id`, plus the dictionary
 
 ```python
-tagged = bb_mask.anonymize(metin)
-sozluk = bb_mask.get_map(tagged.doc_id)
-# sozluk["PERSON"]["Hasan Demirkol"] == "<PERSON_0>"
+tagged = bb_mask.anonymize(text)
+mapping = bb_mask.get_map(tagged.doc_id)
+# mapping["PERSON"]["Hasan Demirkol"] == "<PERSON_0>"
 
-duz = bb_mask.restore(tagged.doc_id, kendi_llm(tagged.text))
+restored = bb_mask.restore(tagged.doc_id, my_llm(tagged.text))
 ```
 
-Okuyunca servisteki kopya da silinsin:
+Delete the service copy as soon as you read it:
 
 ```python
-sozluk = bb_mask.get_map(tagged.doc_id, once=True)
-# bundan sonra restore ve get_map 404 döner
+mapping = bb_mask.get_map(tagged.doc_id, once=True)
+# from now on restore and get_map return 404
 ```
 
-Sözlük gerekmiyorsa Kurgu 1 yeter.
+If you do not need the dictionary, pattern 1 is enough.
 
-### Kurgu 3 — harita sizde, servis saklamaz
+### Pattern 3 — mapping on your side, the service stores nothing
 
-`doc_id` boştur. `state` sözlüktür. Onu modele koymayın. Süreç ölünce de `restore` çalışsın diye `state`’i kendi tarafta saklayabilirsiniz.
+`doc_id` is empty. `state` is the dictionary. Never send it to the model. You can store `state` on your side so `restore` still works after the process exits.
 
 ```python
-tagged = bb_mask.anonymize(metin, persist=False)
+tagged = bb_mask.anonymize(text, persist=False)
 assert tagged.doc_id is None and tagged.state is not None
 
-cevap = kendi_llm(tagged.text)
-duz = bb_mask.restore(tagged.state, cevap)
+reply = my_llm(tagged.text)
+restored = bb_mask.restore(tagged.state, reply)
 ```
 
-Dosyada da aynıdır: `anonymize_file(yol, persist=False)`, `anonymize_documents(yollar, persist=False)`.
+Files work the same way: `anonymize_file(path, persist=False)`, `anonymize_documents(paths, persist=False)`.
 
-### Kurgu 4 — siz id veya json görmezsiniz
+### Pattern 4 — you never see an id or JSON
 
-Kurgu 1. Çıkışta harita silinir.
+Pattern 1. The mapping is deleted on exit.
 
 ```python
 with bb_mask.session() as s:
-    tagged = s.anonymize_documents(["dilekce.pdf", "ek.txt"])
-    cevap = kendi_llm(tagged.text)
-    duz = s.restore(cevap)
+    tagged = s.anonymize_documents(["petition.pdf", "appendix.txt"])
+    reply = my_llm(tagged.text)
+    restored = s.restore(reply)
 ```
 
-Kurgu 3 yüzeyi. State oturum nesnesindedir, servise yazılmaz.
+Pattern 3 surface. The state lives in the session object and is never stored on the service.
 
 ```python
 with bb_mask.session(persist=False) as s:
-    tagged = s.anonymize(metin)
-    duz = s.restore(kendi_llm(tagged.text))
+    tagged = s.anonymize(text)
+    restored = s.restore(my_llm(tagged.text))
 ```
 
 ### Async
 
-Dört fonksiyon vardır. İmzalar senkron kardeşleriyle aynıdır. HTTP işi bir thread’de yürür. `init` bunlarda da gerekir.
+There are four functions. Signatures match their sync counterparts. The HTTP work runs in a thread. They need `init` too.
 
 ```python
-aanonymize(text, persist=True, *, <seçenekler>) -> Tagged
-aanonymize_file(path, persist=True, *, <seçenekler>) -> Tagged
-aanonymize_documents(paths, persist=True, *, <seçenekler>) -> Tagged
+aanonymize(text, persist=True, *, <options>) -> Tagged
+aanonymize_file(path, persist=True, *, <options>) -> Tagged
+aanonymize_documents(paths, persist=True, *, <options>) -> Tagged
 arestore(doc_id_or_state, model_text) -> str
 ```
 
 ```python
-tagged = await bb_mask.aanonymize(metin)
-duz = await bb_mask.arestore(tagged.doc_id, cevap)
+tagged = await bb_mask.aanonymize(text)
+restored = await bb_mask.arestore(tagged.doc_id, reply)
 ```
 
-`get_map`, `delete`, `session` ve `anonymize_bytes` için async karşılık yoktur.
+`get_map`, `delete`, `session` and `anonymize_bytes` have no async version.
 
-## Referans
+## Reference
 
-Modül fonksiyonları `init` ister. `BBAnonym` metotları kurucudaki anahtarı kullanır.
+Module functions need `init`. `BBAnonym` methods use the key given to the constructor.
 
-### Modül
+### Module
 
 ```python
 init(api_key: str, base_url: str = "https://app.bbmask.co", timeout: float = 150) -> BBAnonym
-anonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_bytes(filename: str, content: bytes, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
+anonymize(text: str, persist: bool = True, *, <options>) -> Tagged
+anonymize_file(path: str | Path, persist: bool = True, *, <options>) -> Tagged
+anonymize_bytes(filename: str, content: bytes, persist: bool = True, *, <options>) -> Tagged
+anonymize_documents(paths: list[str | Path], persist: bool = True, *, <options>) -> Tagged
 restore(doc_id_or_state: str | dict, model_text: str) -> str
 get_map(doc_id: str, once: bool = False) -> dict
 delete(doc_id: str) -> bool
-session(persist: bool = True, *, <seçenekler>)  # with ile MaskSession
-aanonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
-aanonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
-aanonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
+session(persist: bool = True, *, <options>)  # MaskSession via with
+aanonymize(text: str, persist: bool = True, *, <options>) -> Tagged
+aanonymize_file(path: str | Path, persist: bool = True, *, <options>) -> Tagged
+aanonymize_documents(paths: list[str | Path], persist: bool = True, *, <options>) -> Tagged
 arestore(doc_id_or_state: str | dict, model_text: str) -> str
 ```
 
-`<seçenekler>` yalnız isimle verilen dört parametredir; imzada açıkça yazılıdır, editör tamamlar, `help(bb_mask.anonymize)` açıklar:
+`<options>` are the four keyword-only parameters; they are spelled out in the signature, so your editor completes them and `help(bb_mask.anonymize)` explains them:
 
 ```python
 placeholder_style: Literal["angle", "bracket_tr"] = "angle",
@@ -298,37 +300,37 @@ health_data: bool = False,
 llm_review: bool = False,
 ```
 
-`persist=True` haritayı serviste tutar, `Tagged.doc_id` dolar. `persist=False` haritayı yazmaz, `Tagged.state` dolar, `doc_id` `None` olur.
+`persist=True` keeps the mapping on the service and sets `Tagged.doc_id`. `persist=False` stores nothing, sets `Tagged.state`, and `doc_id` is `None`.
 
-`restore` ilk argüman `doc_id` (`str`) veya `state` (`dict`). İkinci argüman modelin yazdığı metindir. Dönüş düz metindir.
+`restore` takes a `doc_id` (`str`) or a `state` (`dict`) first. The second argument is the text the model wrote. It returns plain text.
 
-`get_map` sözlüğü döner. `once=True` okuyunca servisteki kopyayı siler; bundan sonra `restore` ve `get_map` `404` verir.
+`get_map` returns the dictionary. `once=True` deletes the service copy after reading; after that `restore` and `get_map` return `404`.
 
-`delete` servis `deleted` derse `True` döner.
+`delete` returns `True` when the service reports `deleted`.
 
-`session` context manager'dır: `with bb_mask.session() as s`. Çıkışta `s.close()` çalışır.
+`session` is a context manager: `with bb_mask.session() as s`. `s.close()` runs on exit.
 
 ### `BBAnonym`
 
-`init` gerekmez. Modülle aynı adları taşır. Tek bir `httpx.Client` paylaşır (bağlantı havuzu); `with` ile veya `close()` ile kapatılır. `repr()` anahtarı maskeler.
+No `init` needed. Same names as the module. It shares a single `httpx.Client` (connection pool); close it with `with` or `close()`. `repr()` masks the key.
 
 ```python
 BBAnonym(base_url: str, token: str, timeout: float = 150)
-anonymize(text: str, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_file(path: str | Path, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_bytes(filename: str, content: bytes, persist: bool = True, *, <seçenekler>) -> Tagged
-anonymize_documents(paths: list[str | Path], persist: bool = True, *, <seçenekler>) -> Tagged
+anonymize(text: str, persist: bool = True, *, <options>) -> Tagged
+anonymize_file(path: str | Path, persist: bool = True, *, <options>) -> Tagged
+anonymize_bytes(filename: str, content: bytes, persist: bool = True, *, <options>) -> Tagged
+anonymize_documents(paths: list[str | Path], persist: bool = True, *, <options>) -> Tagged
 restore(doc_id_or_state: str | dict, model_text: str) -> str
 get_map(doc_id: str, once: bool = False) -> dict
 delete(doc_id: str) -> bool
 close() -> None
 ```
 
-Paket `py.typed` taşır; tip denetleyiciler imzaları okur.
+The package ships `py.typed`; type checkers read the signatures.
 
 ### `MaskSession`
 
-Kurucu dışarıdan çağrılmaz. `persist` ve seçenekler oturum açılırken verilir, metotlara tekrar geçilmez: `bb_mask.session(placeholder_style="bracket_tr", llm_review=True)`.
+Not constructed directly. `persist` and the options are given when the session opens and are not passed to the methods again: `bb_mask.session(placeholder_style="bracket_tr", llm_review=True)`.
 
 ```python
 anonymize(text: str) -> Tagged
@@ -338,9 +340,9 @@ restore(model_text: str) -> str
 close() -> None
 ```
 
-## Bu pakette olmayanlar
+## Not in this package
 
-- Müşterinin LLM çağrısı ve `@ask`.
-- FastAPI uygulaması, konsol çıktısı, `sleep`.
-- Anahtar üretimi ve bakiye. Onlar panelde.
-- Etiket onarımı. Bozuk etiketi servis düzeltir; sözlükteki anahtar düz metindir.
+- Your LLM call and `@ask`.
+- A FastAPI app, console output, `sleep`.
+- Key creation and balance. Those are in the console.
+- Tag repair. The service fixes broken tags; dictionary keys are plain text.

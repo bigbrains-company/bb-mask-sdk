@@ -296,7 +296,7 @@ public class ClientTests
         };
         var error = Require(() => new BBAnonym(server.Url, "dm_test_abc").Anonymize("Ali"), 502);
         Assert.Equal("req-bad", error.RequestId);
-        Assert.Equal("Servis JSON dönmedi", error.Detail);
+        Assert.Equal("The service did not return JSON", error.Detail);
     }
 
     [Fact]
