@@ -1,0 +1,206 @@
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          node_v=$(node -p "require('./node/package.json').version")
+          python_v=$(python3 -c "import tomllib; print(tomllib.load(open('python/pyproject.toml', 'rb'))['project']['version'])")
+          go_v=$(sed -n 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' go/client.go)
+          csharp_v=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' csharp/BbMask.csproj)
+          java_v=$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('java/pom.xml').getroot().find('{http://maven.apache.org/POM/4.0.0}version').text)")
+          status=0
+          for pair in "node=$node_v" "python=$python_v" "go=$go_v" "csharp=$csharp_v" "java=$java_v"; do
+            if [ "${pair#*=}" != "$tag" ]; then
+              echo "::error::${pair%%=*} version ${pair#*=} does not match tag $GITHUB_REF_NAME"
+              status=1
+            fi
+          done
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main"
+            status=1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          exit $status
+
+  npm:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: node
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - run: npm test
+      - id: exists
+        run: |
+          if [ "$(npm view "bb-mask@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::npm bb-mask@$VERSION already published"
+          fi
+      - if: steps.exists.outputs.skip != 'true'
+        run: npm publish
+
+  pypi:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - working-directory: python
+        run: |
+          pip install -e ".[test]" build twine
+          python -m pytest -q
+          python -m build
+          python -m twine check dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist
+          skip-existing: true
+
+  nuget:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: release
+    defaults:
+      run:
+        working-directory: csharp
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet test BbMask.Tests/BbMask.Tests.csproj
+      - run: dotnet pack BbMask.csproj -c Release -o out
+      - run: |
+          dotnet nuget push "out/bb-mask.$VERSION.nupkg" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+  maven:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: java
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - id: exists
+        run: |
+          url="https://repo1.maven.org/maven2/tr/com/bigbrains/bb-mask/$VERSION/bb-mask-$VERSION.pom"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url")" = "200" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::tr.com.bigbrains:bb-mask:$VERSION already published"
+          fi
+      - if: steps.exists.outputs.skip != 'true'
+        run: mvn -B deploy
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+  go:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - working-directory: go
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+      - run: |
+          tag="go/v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::notice::$tag already exists at $(git rev-list -n1 "$tag")"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" -m "bb-mask Go SDK $VERSION" "$GITHUB_SHA"
+            git push origin "$tag"
+          fi
+      - run: |
+          for i in 1 2 3 4 5 6; do
+            GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod \
+              go list -m "github.com/bigbrains-company/bb-mask-sdk/go@v$VERSION" && exit 0
+            sleep 20
+          done
+          exit 1
+
+  github-release:
+    needs: [check, npm, pypi, nuget, maven, go]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" \
+            --title "bb-mask $VERSION" \
+            --generate-notes \
+            --notes "npm bb-mask@$VERSION, PyPI bb-mask==$VERSION, NuGet bb-mask $VERSION, Maven Central tr.com.bigbrains:bb-mask:$VERSION, Go github.com/bigbrains-company/bb-mask-sdk/go@v$VERSION"
