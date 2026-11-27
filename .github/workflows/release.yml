@@ -98,6 +98,9 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: csharp
@@ -110,9 +113,13 @@ jobs:
           dotnet-version: "8.0.x"
       - run: dotnet test BbMask.Tests/BbMask.Tests.csproj
       - run: dotnet pack BbMask.csproj -c Release -o out
+      - uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
       - run: |
           dotnet nuget push "out/bb-mask.$VERSION.nupkg" \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
